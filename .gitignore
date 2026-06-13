@@ -27,6 +27,7 @@ database/tactcrm.db
 # --- AWS SAM build artifacts ---
 .aws-sam/
 infra/out.json
+infra/.deploy-params
 packaged.yaml
 
 # --- OS / IDE ---

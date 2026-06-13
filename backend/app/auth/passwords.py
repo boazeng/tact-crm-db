@@ -1,29 +1,39 @@
 """Password hashing + verification for email/password login.
 
-Uses bcrypt directly (not passlib) — one fewer compatibility layer, and avoids
-the passlib-1.7 / bcrypt-4.x `__about__` breakage that surfaces on AWS Lambda.
-"""
-import bcrypt
+Uses PBKDF2-HMAC-SHA256 from the standard library — zero third-party deps, so the
+Lambda package stays pure-Python (no native wheels, no Docker build). PBKDF2 with
+a high iteration count is an OWASP-recommended password hash.
 
-# bcrypt hashes only the first 72 bytes of the password; longer inputs are
-# silently truncated. We reject them explicitly so two different long passwords
-# can never collide.
-_MAX_BYTES = 72
+Stored format:  pbkdf2_sha256$<iterations>$<salt_hex>$<hash_hex>
+"""
+import hashlib
+import hmac
+import secrets
+
+_ALGORITHM = "pbkdf2_sha256"
+_ITERATIONS = 600_000  # OWASP 2023 guidance for PBKDF2-HMAC-SHA256
+_SALT_BYTES = 16
 
 
 def hash_password(plain: str) -> str:
-    raw = plain.encode("utf-8")
-    if len(raw) > _MAX_BYTES:
-        raise ValueError("Password too long (max 72 bytes)")
-    return bcrypt.hashpw(raw, bcrypt.gensalt()).decode("utf-8")
+    salt = secrets.token_bytes(_SALT_BYTES)
+    digest = hashlib.pbkdf2_hmac("sha256", plain.encode("utf-8"), salt, _ITERATIONS)
+    return f"{_ALGORITHM}${_ITERATIONS}${salt.hex()}${digest.hex()}"
 
 
-def verify_password(plain: str, hashed: str | None) -> bool:
-    """Constant-time check. False (never raises) when the user has no password set."""
-    if not hashed:
+def verify_password(plain: str, stored: str | None) -> bool:
+    """Constant-time check. False (never raises) when the user has no password set
+    or the stored value is malformed."""
+    if not stored:
         return False
-    raw = plain.encode("utf-8")[:_MAX_BYTES]
     try:
-        return bcrypt.checkpw(raw, hashed.encode("utf-8"))
-    except (ValueError, TypeError):
+        algorithm, iterations, salt_hex, hash_hex = stored.split("$")
+        if algorithm != _ALGORITHM:
+            return False
+        expected = bytes.fromhex(hash_hex)
+        candidate = hashlib.pbkdf2_hmac(
+            "sha256", plain.encode("utf-8"), bytes.fromhex(salt_hex), int(iterations)
+        )
+    except (ValueError, AttributeError):
         return False
+    return hmac.compare_digest(candidate, expected)

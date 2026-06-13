@@ -16,10 +16,10 @@ everything else to S3 — one origin, no CORS, RDS never public.
 ## Prerequisites
 - **AWS CLI** configured (already done — account `824980746386`, region `us-east-1`).
 - **AWS SAM CLI** — `sam --version`. Install: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
-- **Docker Desktop running** — required for `sam build --use-container`, which builds
-  `psycopg2-binary` and `bcrypt` as **Linux/arm64** wheels (a plain Windows build ships
-  the wrong binaries and the Lambda fails at import).
 - **Node 20** for the frontend build.
+
+> No Docker needed: all backend deps are pure-Python (`pg8000` Postgres driver +
+> stdlib PBKDF2), so a plain `sam build` produces a Lambda-correct package on any OS.
 
 ---
 
@@ -35,7 +35,7 @@ Note the VPC id and **two subnet ids in different AZs**.
 ## Step 1 — build
 ```powershell
 cd infra
-sam build --use-container
+sam build
 ```
 
 ## Step 2 — deploy the stack (first time: guided)

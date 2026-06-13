@@ -7,7 +7,9 @@ version = 0.1
 stack_name = "tact-crm"
 
 [default.build.parameters]
-use_container = true          # build native deps (psycopg2, bcrypt) for Lambda Linux
+# All dependencies are pure-Python (pg8000 + stdlib pbkdf2), so no container build
+# is needed — a plain `sam build` produces a Lambda-correct package on any OS.
+use_container = false
 cached = true
 
 [default.deploy.parameters]

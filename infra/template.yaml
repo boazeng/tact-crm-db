@@ -55,11 +55,22 @@ Parameters:
     NoEcho: true
     MinLength: 10
     Description: Password for the first super_admin.
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Custom domain for the app (e.g. crm-db.newavera.co.il). Empty = use the cloudfront.net URL.
+  AcmCertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM cert ARN (us-east-1) covering DomainName. Required if DomainName is set.
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref DomainName, '']]
 
 # ---------------------------------------------------------------------------
 Globals:
   Function:
-    Runtime: python3.12
+    Runtime: python3.13
     Timeout: 30
     MemorySize: 512
     Architectures: [arm64]   # t4g/Graviton-friendly and cheaper
@@ -126,9 +137,9 @@ Resources:
       FunctionName: tact-crm-api
       CodeUri: ../backend/
       Handler: app.lambda_handler.handler
-      # Cap concurrency so we never exceed RDS max_connections
-      # (each warm container holds up to db_pool_size+overflow connections).
-      ReservedConcurrentExecutions: 10
+      # No ReservedConcurrentExecutions: this account's total concurrency limit is
+      # 10, which already caps things; reserving any of it is rejected by AWS. The
+      # small DB pool (db_pool_size+overflow per container) keeps RDS connections safe.
       VpcConfig:
         SecurityGroupIds: [!Ref LambdaSecurityGroup]
         SubnetIds: !Ref SubnetIds
@@ -138,7 +149,7 @@ Resources:
           ENABLE_DEV_LOGIN: 'false'
           JWT_SECRET: !Ref JwtSecret
           DATABASE_URL: !Sub
-            - postgresql+psycopg2://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
+            - postgresql+pg8000://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
             - Endpoint: !GetAtt Database.Endpoint.Address
           # CORS is unused (same-origin via CloudFront) but kept harmless/explicit.
           CORS_ORIGINS: '*'
@@ -172,7 +183,7 @@ Resources:
           APP_ENV: production
           JWT_SECRET: !Ref JwtSecret
           DATABASE_URL: !Sub
-            - postgresql+psycopg2://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
+            - postgresql+pg8000://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
             - Endpoint: !GetAtt Database.Endpoint.Address
           SEED_ADMIN_EMAIL: !Ref SeedAdminEmail
           SEED_ADMIN_PASSWORD: !Ref SeedAdminPassword
@@ -225,6 +236,13 @@ Resources:
       DistributionConfig:
         Enabled: true
         DefaultRootObject: index.html
+        Aliases: !If [HasDomain, [!Ref DomainName], !Ref 'AWS::NoValue']
+        ViewerCertificate: !If
+          - HasDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - !Ref 'AWS::NoValue'
         # SPA routing: serve index.html for client-side routes (S3 404/403).
         CustomErrorResponses:
           - ErrorCode: 403
@@ -263,8 +281,12 @@ Resources:
 # ---------------------------------------------------------------------------
 Outputs:
   SiteURL:
-    Description: Public app URL (open this in the browser).
+    Description: CloudFront app URL (always works).
     Value: !Sub https://${Distribution.DomainName}
+  CustomDomainURL:
+    Condition: HasDomain
+    Description: Custom-domain app URL (after the CNAME is added in DNS).
+    Value: !Sub https://${DomainName}
   ApiEndpoint:
     Description: Raw HTTP API endpoint (debugging only — use SiteURL normally).
     Value: !GetAtt HttpApi.ApiEndpoint
