@@ -16,7 +16,6 @@ from .api import (
     list_fields,
     number_labels,
     param_labels,
-    priority,
     project_field_labels,
     projects,
     public_api,
@@ -65,7 +64,17 @@ def create_app() -> FastAPI:
     app.include_router(customers.router)
     app.include_router(api_keys.router)
     app.include_router(public_api.router)
-    app.include_router(priority.router)
+
+    # Priority-ERP sync is an optional, still-in-progress feature. Load its router
+    # only if the module is present in this build, so a deployment that doesn't
+    # include those files (e.g. CI from a clean checkout) still boots normally.
+    try:
+        from .api import priority
+
+        app.include_router(priority.router)
+    except ImportError:
+        pass
+
     return app
 
 
