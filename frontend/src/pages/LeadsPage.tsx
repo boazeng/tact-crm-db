@@ -5,6 +5,7 @@ import Modal from '../components/Modal'
 import CustomerForm, {
   EMPTY_CORE,
   toBody,
+  todayISO,
   type CoreForm,
 } from '../components/CustomerForm'
 import { useAuth, useEffectiveCompanyId } from '../lib/AuthContext'
@@ -39,6 +40,7 @@ function rowToBody(c: Customer): CustomerInput {
     email: c.email,
     allow_mailing: c.allow_mailing,
     notes: c.notes,
+    creation_date: c.creation_date,
     params: c.params,
     numbers: c.numbers,
     flags: c.flags,
@@ -105,7 +107,7 @@ export default function LeadsPage() {
   useEffect(load, [companyId, user?.role])
 
   function openCreate() {
-    setCore(EMPTY_LEAD)
+    setCore({ ...EMPTY_LEAD, creation_date: todayISO() })
     setFieldVals({})
     setSaveErr(null)
     setOpen(true)

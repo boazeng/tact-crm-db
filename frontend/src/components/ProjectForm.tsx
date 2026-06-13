@@ -20,6 +20,7 @@ export type ProjectForm = {
   description: string
   customer_membership_id: number | null
   notes: string
+  creation_date: string
   params: string[]
   numbers: string[] // kept as strings for the inputs; coerced on submit
   flags: boolean[]
@@ -32,6 +33,7 @@ export const EMPTY_PROJECT: ProjectForm = {
   description: '',
   customer_membership_id: null,
   notes: '',
+  creation_date: '',
   params: Array(PARAM_COUNT).fill(''),
   numbers: Array(NUM_COUNT).fill(''),
   flags: Array(FLAG_COUNT).fill(false),
@@ -45,6 +47,7 @@ export function formFromProject(p: Project): ProjectForm {
     description: p.description || '',
     customer_membership_id: p.customer_membership_id,
     notes: p.notes || '',
+    creation_date: p.creation_date || '',
     params: Array(PARAM_COUNT).fill('').map((_, i) => p.params?.[i] ?? ''),
     numbers: Array(NUM_COUNT).fill('').map((_, i) => (p.numbers?.[i] ?? '') === null ? '' : String(p.numbers?.[i] ?? '')),
     flags: Array(FLAG_COUNT).fill(false).map((_, i) => p.flags?.[i] ?? false),
@@ -59,6 +62,7 @@ export function toBody(f: ProjectForm): ProjectInput {
     description: f.description || null,
     customer_membership_id: f.customer_membership_id,
     notes: f.notes || null,
+    creation_date: f.creation_date || null,
     params: f.params.map((p) => p || null),
     numbers: f.numbers.map((n) => (n.trim() === '' ? null : Number(n))),
     flags: f.flags,
@@ -174,6 +178,9 @@ export default function ProjectForm({ form, setForm, fieldLabels, customerOption
               <option key={o.membership_id} value={o.membership_id}>{o.full_name}</option>
             ))}
           </select>
+        </Field>
+        <Field label="תאריך יצירה" hint="ברירת מחדל: היום. ניתן לשנות.">
+          <input type="date" style={inputStyle} value={form.creation_date} onChange={(e) => set({ creation_date: e.target.value })} />
         </Field>
       </div>
       <Field label="תיאור הפרויקט">

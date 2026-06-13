@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, date
 from enum import StrEnum
 
-from sqlalchemy import String, DateTime, Boolean, Float, Index, UniqueConstraint
+from sqlalchemy import String, DateTime, Date, Boolean, Float, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -56,6 +56,10 @@ class Customer(Base):
     phone: Mapped[str | None] = mapped_column(String(40))
     email: Mapped[str | None] = mapped_column(String(200))
     notes: Mapped[str | None] = mapped_column(String(2000))
+
+    # User-editable "creation date" (business date, distinct from the system
+    # `created_at` audit timestamp). Defaults to today on create, but editable.
+    creation_date: Mapped[date | None] = mapped_column(Date)
 
     # Configurable fields (global values; per-company labels live on the label
     # tables). Counts mirror the project model: 15 text params, 15 numbers,

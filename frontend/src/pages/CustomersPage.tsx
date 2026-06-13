@@ -5,6 +5,7 @@ import Modal from '../components/Modal'
 import CustomerForm, {
   EMPTY_CORE,
   toBody,
+  todayISO,
   type CoreForm,
 } from '../components/CustomerForm'
 import { useAuth, useEffectiveCompanyId } from '../lib/AuthContext'
@@ -77,7 +78,7 @@ export default function CustomersPage() {
   useEffect(load, [companyId, user?.role])
 
   function openCreate() {
-    setCore(EMPTY_CORE)
+    setCore({ ...EMPTY_CORE, creation_date: todayISO() })
     setFieldVals({})
     setSaveErr(null)
     setOpen(true)
@@ -175,6 +176,11 @@ export default function CustomersPage() {
                   {r.status === 'active' ? 'כן' : 'לא'}
                 </span>
               ),
+            },
+            {
+              header: 'תאריך יצירה',
+              key: 'creation_date',
+              render: (r: Customer) => (r.creation_date ? r.creation_date.split('-').reverse().join('/') : '—'),
             },
             {
               header: 'משלם',

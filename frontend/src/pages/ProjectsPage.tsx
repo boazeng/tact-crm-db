@@ -59,7 +59,7 @@ export default function ProjectsPage() {
 
   function openCreate() {
     setEditingId(null)
-    setForm(EMPTY_PROJECT)
+    setForm({ ...EMPTY_PROJECT, creation_date: new Date().toISOString().slice(0, 10) })
     setSaveErr(null)
     setOpen(true)
   }
@@ -129,6 +129,7 @@ export default function ProjectsPage() {
             { header: "מס' פרויקט", key: 'project_number', render: (r: Project) => r.project_number || '—' },
             { header: 'שם', key: 'name' },
             { header: 'לקוח', key: 'customer_name', render: (r: Project) => r.customer_name || '—' },
+            { header: 'תאריך יצירה', key: 'creation_date', render: (r: Project) => (r.creation_date ? r.creation_date.split('-').reverse().join('/') : '—') },
           ]}
           actions={(r) => (
             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>

@@ -1,7 +1,7 @@
 """Project business logic (tenant-scoped). A project keeps basic data plus a
 flexible block of configurable fields (params/numbers/flags/lists), mirroring the
 customer model."""
-from datetime import datetime
+from datetime import datetime, date
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -59,6 +59,7 @@ def _apply(project: Project, body: ProjectIn) -> None:
     project.name = body.name
     project.description = body.description
     project.notes = body.notes
+    project.creation_date = body.creation_date or project.creation_date or date.today()
     for i in range(PROJECT_PARAM_COUNT):
         setattr(project, f"param{i + 1}", body.params[i] if i < len(body.params) else None)
     for i in range(PROJECT_NUM_COUNT):
@@ -113,6 +114,7 @@ def to_out(db: Session, project: Project) -> ProjectOut:
         customer_membership_id=project.customer_membership_id,
         customer_name=_customer_name(db, project.customer_membership_id),
         notes=project.notes,
+        creation_date=project.creation_date,
         params=[getattr(project, f"param{i + 1}") for i in range(PROJECT_PARAM_COUNT)],
         numbers=[getattr(project, f"num{i + 1}") for i in range(PROJECT_NUM_COUNT)],
         flags=[bool(getattr(project, f"flag{i + 1}")) for i in range(PROJECT_FLAG_COUNT)],

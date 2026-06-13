@@ -15,6 +15,8 @@ Metadata:
     config:
       ignore_checks:
         - W1011
+        # AZs are hardcoded on purpose to match the existing subnets/RDS (1a, 1b).
+        - W3010
 
 # ---------------------------------------------------------------------------
 Parameters:
@@ -63,6 +65,18 @@ Parameters:
     Type: String
     Default: ''
     Description: ACM cert ARN (us-east-1) covering DomainName. Required if DomainName is set.
+  PrivateSubnetACidr:
+    Type: String
+    Default: 172.31.96.0/20
+    Description: Free CIDR in the VPC for the AZ-a private subnet (Lambda egress via NAT).
+  PrivateSubnetBCidr:
+    Type: String
+    Default: 172.31.112.0/20
+    Description: Free CIDR in the VPC for the AZ-b private subnet.
+  NatInstanceAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+    Description: Latest Amazon Linux 2023 arm64 AMI for the NAT instance (auto-resolved).
 
 Conditions:
   HasDomain: !Not [!Equals [!Ref DomainName, '']]
@@ -98,6 +112,91 @@ Resources:
           FromPort: 5432
           ToPort: 5432
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+  # --- NAT egress for the Lambda --------------------------------------------
+  # The API Lambda lives in private subnets so it can reach the private RDS. To
+  # let the Priority-ERP sync reach the internet (p.priority-connect.online), a
+  # small NAT instance in an existing public subnet provides outbound egress.
+  # A NAT instance (not a managed NAT Gateway) keeps cost ~$3-4/mo; the tradeoff
+  # is a single point of failure, acceptable for a few-times-a-week sync.
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PrivateSubnetACidr
+      AvailabilityZone: us-east-1a
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: tact-crm-private-a }]
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PrivateSubnetBCidr
+      AvailabilityZone: us-east-1b
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: tact-crm-private-b }]
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcId
+      Tags: [{ Key: Name, Value: tact-crm-private-rt }]
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      InstanceId: !Ref NatEgressInstance
+
+  PrivateSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  NatSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: TACT-CRM NAT instance - forwards egress from the VPC.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: 172.31.0.0/16   # only in-VPC traffic (the private subnets)
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  NatEgressInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t4g.nano
+      ImageId: !Ref NatInstanceAmi
+      # An existing public subnet (auto-assigns a public IP, routes to the IGW).
+      SubnetId: !Select [0, !Ref SubnetIds]
+      SourceDestCheck: false
+      SecurityGroupIds: [!Ref NatSecurityGroup]
+      Tags: [{ Key: Name, Value: tact-crm-nat }]
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          # AL2023 ships without the iptables CLI, so install it FIRST (the
+          # iptables-nft package provides /usr/sbin/iptables). No `set -e`: a
+          # hiccup in the persistence step must not abort before masquerade.
+          echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-nat.conf
+          sysctl -p /etc/sysctl.d/99-nat.conf
+          dnf install -y iptables-nft iptables-services
+          IFACE=$(ip route show default | awk '{print $5; exit}')
+          iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE
+          iptables-save > /etc/sysconfig/iptables
+          systemctl enable --now iptables
 
   # --- Database ----------------------------------------------------------
   DbSubnetGroup:
@@ -142,7 +241,7 @@ Resources:
       # small DB pool (db_pool_size+overflow per container) keeps RDS connections safe.
       VpcConfig:
         SecurityGroupIds: [!Ref LambdaSecurityGroup]
-        SubnetIds: !Ref SubnetIds
+        SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB]
       Environment:
         Variables:
           APP_ENV: production
@@ -177,7 +276,7 @@ Resources:
       Timeout: 120
       VpcConfig:
         SecurityGroupIds: [!Ref LambdaSecurityGroup]
-        SubnetIds: !Ref SubnetIds
+        SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB]
       Environment:
         Variables:
           APP_ENV: production

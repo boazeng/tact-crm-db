@@ -1,5 +1,5 @@
 """Schemas for customers as seen within a company (core identity + membership + field values)."""
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -35,6 +35,9 @@ class CustomerIn(BaseModel):
     email: str | None = None
     allow_mailing: bool = True           # מאפשר דיוור — default yes
     notes: str | None = None
+    # Editable creation date (תאריך יצירה). Omitted → server defaults to today on
+    # create, or keeps the existing value on update.
+    creation_date: date | None = None
     # 10 fixed parameters (index 0 = פרמטר 1 ... index 9 = פרמטר 10).
     params: list[str | None] = []
     # 15 numeric params.
@@ -96,6 +99,7 @@ class CustomerOut(BaseModel):
     email: str | None
     allow_mailing: bool
     notes: str | None
+    creation_date: date | None = None
     params: list[str | None] = []
     numbers: list[float | None] = []
     flags: list[bool] = []

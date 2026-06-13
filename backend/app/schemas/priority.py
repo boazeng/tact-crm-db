@@ -32,6 +32,9 @@ class PriorityFieldOut(BaseModel):
     name: str
     type: str = ""
     label: str = ""
+    sample: str = ""
+    description: str = ""   # Hebrew explanation of the Priority field
+    suggested: str = ""     # recommended CRM target key, or "-" to skip
 
 
 class SystemFieldOut(BaseModel):
@@ -60,3 +63,21 @@ class MappingBulkIn(BaseModel):
 class TestResult(BaseModel):
     ok: bool
     message: str
+
+
+class IngestRequest(BaseModel):
+    # Optional cap on how many Priority records to ingest (for a trial run).
+    limit: int | None = None
+
+
+class IngestError(BaseModel):
+    key: str | None = None
+    error: str
+
+
+class IngestSummary(BaseModel):
+    total: int
+    created: int
+    updated: int
+    skipped: int
+    errors: list[IngestError] = []

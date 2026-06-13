@@ -1,5 +1,5 @@
 """Schemas for projects (core basic data + configurable params/numbers/flags/lists)."""
-from datetime import datetime
+from datetime import datetime, date
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,6 +13,7 @@ class ProjectIn(BaseModel):
     description: str | None = None
     customer_membership_id: int | None = None
     notes: str | None = None
+    creation_date: date | None = None   # editable; server defaults to today on create
 
     # configurable fields (fixed counts; labels resolved client-side)
     params: list[str | None] = []      # 10 text
@@ -32,6 +33,7 @@ class ProjectOut(BaseModel):
     customer_membership_id: int | None
     customer_name: str | None = None
     notes: str | None
+    creation_date: date | None = None
 
     params: list[str | None] = []
     numbers: list[float | None] = []

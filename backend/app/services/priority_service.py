@@ -11,6 +11,7 @@ of one sample record. Auth is HTTP Basic. Dependency-free (stdlib urllib + xml).
 """
 import base64
 import json
+import re
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -35,6 +36,7 @@ from ..models.param_label import default_param_label
 from ..models.number_label import default_number_label
 from ..models.flag_label import default_flag_label
 from ..models.list_field import default_list_label
+from .priority_fields_ref import enrich as _enrich_fields
 
 
 # ---------------------------------------------------------------------------
@@ -133,38 +135,70 @@ def _parse_metadata(xml: bytes, entity: str) -> list[dict]:
     return fields
 
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T")
+
+
+def _infer_type(v) -> str:
+    if isinstance(v, bool):
+        return "boolean"
+    if isinstance(v, (int, float)):
+        return "number"
+    if isinstance(v, str):
+        return "date" if _DATE_RE.match(v) else "string"
+    return ""
+
+
 def _parse_sample(body: bytes) -> list[dict]:
-    """Fallback: read field names from one record's JSON keys."""
+    """Build the field list from a few sample records.
+
+    Reading actual records is far cheaper than the (multi-MB) ``$metadata`` doc
+    and gives us a real example VALUE per field — which is what makes the mapping
+    screen decidable. The OData JSON is already typed, so we infer the type from
+    the first non-null value seen across the sample rows.
+    """
     data = json.loads(body.decode("utf-8", "replace"))
     rows = data.get("value") if isinstance(data, dict) else None
-    row = (rows or [None])[0] if rows else (data if isinstance(data, dict) else None)
-    if not isinstance(row, dict):
+    if not rows and isinstance(data, dict):
+        rows = [data]
+    if not rows:
         return []
-    return [
-        {"name": k, "type": "", "label": k}
-        for k in row.keys()
-        if not k.startswith("@")
-    ]
+    fields: dict[str, dict] = {}
+    order: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for k, v in row.items():
+            if k.startswith("@"):
+                continue
+            if k not in fields:
+                fields[k] = {"name": k, "type": "", "label": k, "sample": ""}
+                order.append(k)
+            f = fields[k]
+            if not f["sample"] and v not in (None, ""):
+                f["sample"] = str(v)[:80]
+                f["type"] = _infer_type(v)
+    return [fields[k] for k in order]
 
 
 def fetch_priority_fields(conn: PriorityConnection) -> list[dict]:
-    """Live-fetch the field list of the configured Priority entity."""
+    """Live-fetch the field list of the configured Priority entity.
+
+    Primary source is a small sample of records (fast, and carries example
+    values). Only if the entity is empty do we fall back to the heavy
+    ``$metadata`` document for the bare field names/types.
+    """
     base = _base(conn)
     entity = (conn.entity_name or "CUSTOMERS").strip()
-    # Preferred: the service metadata document.
-    try:
-        meta = _request(base + "$metadata", conn, "application/xml")
-        fields = _parse_metadata(meta, entity)
-        if fields:
-            return fields
-    except PriorityError:
-        pass  # fall through to a sample record
-    # Fallback: one record's keys.
-    sample = _request(f"{base}{entity}?$top=1", conn, "application/json")
+    sample = _request(f"{base}{entity}?$top=20", conn, "application/json")
     fields = _parse_sample(sample)
     if not fields:
+        # Empty table — fall back to the schema document for field names.
+        meta = _request(base + "$metadata", conn, "application/xml")
+        fields = _parse_metadata(meta, entity)
+    if not fields:
         raise PriorityError(f"לא נמצאו שדות עבור הישות '{entity}' בפריורטי")
-    return fields
+    # Attach Hebrew descriptions + recommended targets for known fields.
+    return _enrich_fields(fields)
 
 
 def test_connection(db: Session, conn: PriorityConnection) -> tuple[bool, str]:
@@ -199,6 +233,8 @@ _CORE_FIELDS: list[tuple[str, str]] = [
     ("street2", "רחוב (כתובת 2)"),
     ("city2", "עיר (כתובת 2)"),
     ("notes", "הערות"),
+    ("creation_date", "תאריך יצירה"),
+    ("status", "סטטוס לקוח (ליד/פעיל/לא פעיל)"),
     ("external_ref", "מזהה חיצוני (במערכת המקור)"),
 ]
 

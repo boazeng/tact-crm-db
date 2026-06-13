@@ -1,15 +1,20 @@
 import { useState } from 'react'
+import { useAuth } from '../lib/AuthContext'
 import RolesPage from './RolesPage'
 import FieldsPage from './FieldsPage'
 import ParamLabelsPage from './ParamLabelsPage'
 import DisplayColumnsPage from './DisplayColumnsPage'
 import ProjectFieldLabelsPage from './ProjectFieldLabelsPage'
 import ProjectFieldOrderPage from './ProjectFieldOrderPage'
+import PrioritySyncPage from './PrioritySyncPage'
+import PriorityIngestPage from './PriorityIngestPage'
 
 type Section = 'customers' | 'projects' | 'leads'
 
+type Sub = { k: string; l: string; el: JSX.Element; superOnly?: boolean }
+
 // Top-level sections, each with its own set of configuration sub-tabs.
-const SECTIONS: { k: Section; l: string; subs: { k: string; l: string; el: JSX.Element }[] }[] = [
+const SECTIONS: { k: Section; l: string; subs: Sub[] }[] = [
   {
     k: 'customers',
     l: 'לקוחות',
@@ -18,6 +23,8 @@ const SECTIONS: { k: Section; l: string; subs: { k: string; l: string; el: JSX.E
       { k: 'fields', l: 'שדות סיווג', el: <FieldsPage /> },
       { k: 'params', l: 'שמות פרמטרים', el: <ParamLabelsPage /> },
       { k: 'columns', l: 'עמודות בטבלה', el: <DisplayColumnsPage /> },
+      { k: 'priority', l: 'סנכרון שדות פריורטי', el: <PrioritySyncPage />, superOnly: true },
+      { k: 'priority_ingest', l: 'קליטת נתוני לקוח מפריורטי', el: <PriorityIngestPage />, superOnly: true },
     ],
   },
   {
@@ -51,6 +58,8 @@ const tabBtn = (active: boolean, top: boolean) => ({
 /** "ניהול חברה" — per-company configuration, grouped into top-level sections
  * (לקוחות / פרויקטים / לידים), each with its own sub-tabs. */
 export default function CompanyAdminPage() {
+  const { user } = useAuth()
+  const isSuper = user?.role === 'super_admin'
   const [section, setSection] = useState<Section>('customers')
   // One remembered sub-tab key per section.
   const [subBySection, setSubBySection] = useState<Record<Section, string>>({
@@ -59,7 +68,9 @@ export default function CompanyAdminPage() {
     leads: '',
   })
 
-  const active = SECTIONS.find((s) => s.k === section)!
+  const activeRaw = SECTIONS.find((s) => s.k === section)!
+  // super_admin-only sub-tabs (e.g. Priority sync) are hidden for everyone else.
+  const active = { ...activeRaw, subs: activeRaw.subs.filter((t) => isSuper || !t.superOnly) }
   const activeSub = active.subs.find((t) => t.k === subBySection[section])
 
   return (

@@ -5,7 +5,7 @@ found-or-created (de-duped by national_id/email), linked to the company via a
 CustomerCompany membership, and the company's classification field values are
 upserted onto that membership.
 """
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -149,6 +149,8 @@ def _apply_core(customer: Customer, body: CustomerIn) -> None:
     customer.email = body.email
     customer.allow_mailing = body.allow_mailing
     customer.notes = body.notes
+    # Explicit date wins; otherwise keep an existing one; otherwise default today.
+    customer.creation_date = body.creation_date or customer.creation_date or date.today()
     for i in range(PARAM_COUNT):
         setattr(customer, f"param{i + 1}", body.params[i] if i < len(body.params) else None)
     for i in range(NUM_COUNT):
@@ -371,6 +373,7 @@ def to_out(db: Session, membership: CustomerCompany, customer: Customer) -> Cust
         email=customer.email,
         allow_mailing=customer.allow_mailing,
         notes=customer.notes,
+        creation_date=customer.creation_date,
         params=[getattr(customer, f"param{i + 1}") for i in range(PARAM_COUNT)],
         numbers=[getattr(customer, f"num{i + 1}") for i in range(NUM_COUNT)],
         flags=[bool(getattr(customer, f"flag{i + 1}")) for i in range(FLAG_COUNT)],

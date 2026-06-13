@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, date
 
-from sqlalchemy import String, DateTime, Boolean, Float, Integer, ForeignKey, Index
+from sqlalchemy import String, DateTime, Date, Boolean, Float, Integer, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -37,6 +37,8 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str | None] = mapped_column(String(2000))  # תיאור הפרויקט
     notes: Mapped[str | None] = mapped_column(String(2000))
+    # User-editable creation date (defaults to today on create; editable).
+    creation_date: Mapped[date | None] = mapped_column(Date)
 
     # ---- configurable fields (labels per-company on ProjectFieldLabel) ----
     param1: Mapped[str | None] = mapped_column(String(500))

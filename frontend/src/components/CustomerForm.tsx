@@ -7,6 +7,9 @@ export const NUM_COUNT = 15
 export const FLAG_COUNT = 5
 export const LIST_COUNT = 10
 
+/** Today as an ISO date string (YYYY-MM-DD) for the date inputs' default. */
+export const todayISO = () => new Date().toISOString().slice(0, 10)
+
 export const STATUS_OPTIONS = [
   { v: 'lead', l: 'ליד' },
   { v: 'active', l: 'פעיל' },
@@ -40,6 +43,7 @@ export type CoreForm = {
   email: string
   allow_mailing: boolean
   notes: string
+  creation_date: string
   status: string
   params: string[]
   numbers: string[]
@@ -66,6 +70,7 @@ export const EMPTY_CORE: CoreForm = {
   email: '',
   allow_mailing: true,
   notes: '',
+  creation_date: '',
   status: 'active',
   params: Array(PARAM_COUNT).fill(''),
   numbers: Array(NUM_COUNT).fill(''),
@@ -93,6 +98,7 @@ export function coreFromCustomer(c: Customer): CoreForm {
     email: c.email || '',
     allow_mailing: c.allow_mailing,
     notes: c.notes || '',
+    creation_date: c.creation_date || '',
     status: c.status,
     params: Array(PARAM_COUNT)
       .fill('')
@@ -132,6 +138,7 @@ export function toBody(core: CoreForm, fieldVals: Record<string, unknown>): Cust
     email: core.email || null,
     allow_mailing: core.allow_mailing,
     notes: core.notes || null,
+    creation_date: core.creation_date || null,
     params: core.params.map((p) => p || null),
     numbers: core.numbers.map((n) => (n.trim() === '' ? null : Number(n))),
     flags: core.flags,
@@ -355,6 +362,9 @@ export default function CustomerForm({
         </Field>
         <Field label="אימייל">
           <input style={inputStyle} value={core.email} onChange={(e) => set({ email: e.target.value })} />
+        </Field>
+        <Field label="תאריך יצירה" hint="ברירת מחדל: היום. ניתן לשנות.">
+          <input type="date" style={inputStyle} value={core.creation_date} onChange={(e) => set({ creation_date: e.target.value })} />
         </Field>
       </div>
 
