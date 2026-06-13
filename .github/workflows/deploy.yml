@@ -1,0 +1,95 @@
+name: Deploy to AWS
+
+# Auto-deploy on push to main. Secrets are NOT stored in GitHub — they live in
+# AWS SSM Parameter Store and are fetched at deploy time via an OIDC role.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'infra/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+permissions:
+  id-token: write   # required for OIDC role assumption
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ROLE_ARN: arn:aws:iam::824980746386:role/tact-crm-github-deploy
+  STACK: tact-crm
+  # --- non-secret stack config ---
+  VPC_ID: vpc-0ec0b54063868e16b
+  SUBNET_IDS: subnet-0690a7d9bca4f5e98,subnet-08c9344f4c4c388ac
+  DB_USERNAME: crmadmin
+  SEED_ADMIN_EMAIL: boazen@gmail.com
+  DOMAIN_NAME: crm-db.newavera.co.il
+  ACM_CERT_ARN: arn:aws:acm:us-east-1:824980746386:certificate/8f274c02-3d62-4153-8a7c-b80ab1f779e5
+  FRONTEND_BUCKET: tact-crm-frontend-824980746386
+  DISTRIBUTION_ID: EVBCIH8FIF8QQ
+
+jobs:
+  frontend:
+    name: Build & publish frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Publish to S3 + invalidate CloudFront
+        run: |
+          aws s3 sync frontend/dist/ "s3://${FRONTEND_BUCKET}/" --delete
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
+
+  backend:
+    name: Build & deploy backend (SAM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: SAM build
+        working-directory: infra
+        run: sam build
+      - name: SAM deploy (secrets fetched from SSM)
+        working-directory: infra
+        run: |
+          DB_PASSWORD=$(aws ssm get-parameter --name tact-crm-db-password --with-decryption --query Parameter.Value --output text)
+          JWT_SECRET=$(aws ssm get-parameter --name tact-crm-jwt-secret --with-decryption --query Parameter.Value --output text)
+          SEED_ADMIN_PASSWORD=$(aws ssm get-parameter --name tact-crm-seed-admin-password --with-decryption --query Parameter.Value --output text)
+          echo "::add-mask::$DB_PASSWORD"
+          echo "::add-mask::$JWT_SECRET"
+          echo "::add-mask::$SEED_ADMIN_PASSWORD"
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "VpcId=${VPC_ID}" \
+              "SubnetIds=${SUBNET_IDS}" \
+              "DBUsername=${DB_USERNAME}" \
+              "DBPassword=${DB_PASSWORD}" \
+              "JwtSecret=${JWT_SECRET}" \
+              "SeedAdminEmail=${SEED_ADMIN_EMAIL}" \
+              "SeedAdminPassword=${SEED_ADMIN_PASSWORD}" \
+              "DomainName=${DOMAIN_NAME}" \
+              "AcmCertificateArn=${ACM_CERT_ARN}"
