@@ -5,7 +5,7 @@ import {
   Customers,
   type Project,
   type ProjectFieldLabel,
-  type Customer,
+  type CustomerOption,
 } from '../lib/api'
 import DataTable from '../components/DataTable'
 import Modal from '../components/Modal'
@@ -25,7 +25,7 @@ export default function ProjectsPage() {
 
   const [rows, setRows] = useState<Project[]>([])
   const [fieldLabels, setFieldLabels] = useState<ProjectFieldLabel[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -45,7 +45,7 @@ export default function ProjectsPage() {
     Promise.all([
       Projects.list(cid, search || undefined),
       ProjectFieldLabels.list(cid),
-      Customers.list(cid, undefined, { excludeStatus: 'lead' }),
+      Customers.options(cid, { excludeStatus: 'lead' }),
     ])
       .then(([p, fl, c]) => {
         setRows(p)

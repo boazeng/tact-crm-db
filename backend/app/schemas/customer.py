@@ -5,6 +5,14 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
+class CustomerOption(BaseModel):
+    """Lightweight customer entry for pickers (linked-customer / paid-by / project
+    customer). Avoids serializing the full customer + its field values & links."""
+    membership_id: int
+    full_name: str
+    customer_number: str | None = None
+
+
 class CustomerLinkIn(BaseModel):
     linked_membership_id: int
     role: str | None = None   # תפקיד

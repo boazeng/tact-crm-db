@@ -498,6 +498,13 @@ export const RealEstateProjectFieldLabels = {
     api<RealEstateProjectFieldLabel[]>('/api/realestate-project-field-labels/order', { method: 'PUT', body: { order }, query: cq(companyId) }),
 }
 
+// Lightweight customer entry for pickers (linked-customer / paid-by / project).
+export type CustomerOption = {
+  membership_id: number
+  full_name: string
+  customer_number: string | null
+}
+
 export const Customers = {
   list: (
     companyId?: number,
@@ -511,6 +518,12 @@ export const Customers = {
         status: opts?.status,
         exclude_status: opts?.excludeStatus,
       },
+    }),
+  // Fast {membership_id, full_name, customer_number} list for dropdowns — avoids
+  // pulling every customer's full record (and its N+1 field/link sub-queries).
+  options: (companyId?: number, opts?: { excludeStatus?: string }) =>
+    api<CustomerOption[]>('/api/customers/options', {
+      query: { company_id: companyId, exclude_status: opts?.excludeStatus },
     }),
   get: (membershipId: number, companyId?: number) =>
     api<Customer>(`/api/customers/${membershipId}`, { query: cq(companyId) }),

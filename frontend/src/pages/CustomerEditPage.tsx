@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Customers, Fields, RoleOptions, ParamLabels, NumberLabels, FlagLabels, ListFields, type Customer, type FieldDefinition, type ParamLabel, type NumberLabel, type FlagLabel, type ListFieldDef } from '../lib/api'
+import { Customers, Fields, RoleOptions, ParamLabels, NumberLabels, FlagLabels, ListFields, type Customer, type CustomerOption, type FieldDefinition, type ParamLabel, type NumberLabel, type FlagLabel, type ListFieldDef } from '../lib/api'
 import CustomerForm, {
   coreFromCustomer,
   toBody,
@@ -30,7 +30,7 @@ export default function CustomerEditPage({
   const [numberDefs, setNumberDefs] = useState<NumberLabel[]>([])
   const [flagDefs, setFlagDefs] = useState<FlagLabel[]>([])
   const [listDefs, setListDefs] = useState<ListFieldDef[]>([])
-  const [others, setOthers] = useState<Customer[]>([])
+  const [others, setOthers] = useState<CustomerOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -41,7 +41,7 @@ export default function CustomerEditPage({
     Promise.all([
       Customers.get(membershipId, cid),
       Fields.list(cid),
-      Customers.list(cid),
+      Customers.options(cid),
       RoleOptions.list(cid),
       ParamLabels.list(cid),
       NumberLabels.list(cid),

@@ -61,6 +61,25 @@ def list_memberships(
     return q.order_by(Customer.full_name).all()
 
 
+def list_options(
+    db: Session, company_id: int, exclude_status: str | None = None
+) -> list[dict]:
+    """Lightweight name list for pickers — one query, 3 columns, no per-row
+    ``to_out`` (which fans out into field-value/link/name sub-queries). This is
+    what dropdowns should use instead of the full customer list."""
+    q = (
+        db.query(CustomerCompany.id, Customer.full_name, Customer.customer_number)
+        .join(Customer, Customer.id == CustomerCompany.customer_id)
+        .filter(CustomerCompany.company_id == company_id)
+    )
+    if exclude_status:
+        q = q.filter(CustomerCompany.status != exclude_status)
+    return [
+        {"membership_id": mid, "full_name": name, "customer_number": num}
+        for mid, name, num in q.order_by(Customer.full_name).all()
+    ]
+
+
 def get_membership(
     db: Session, company_id: int, membership_id: int
 ) -> tuple[CustomerCompany, Customer]:

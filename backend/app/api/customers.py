@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..deps import get_current_user, get_db, resolve_company_id
 from ..models import User
-from ..schemas.customer import CustomerIn, CustomerOut
+from ..schemas.customer import CustomerIn, CustomerOut, CustomerOption
 from ..services import customer_service
 
 
@@ -24,6 +24,17 @@ def list_customers(
         db, company_id, search, status=status, exclude_status=exclude_status
     )
     return [customer_service.to_out(db, m, c) for m, c in rows]
+
+
+@router.get("/options", response_model=list[CustomerOption])
+def list_customer_options(
+    exclude_status: str | None = Query(default=None, description="Drop this membership status, e.g. 'lead'"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+    company_id: int = Depends(resolve_company_id),
+):
+    """Lightweight {membership_id, full_name, customer_number} list for pickers."""
+    return customer_service.list_options(db, company_id, exclude_status=exclude_status)
 
 
 @router.get("/{membership_id}", response_model=CustomerOut)
