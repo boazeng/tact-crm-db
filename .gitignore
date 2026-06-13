@@ -1,0 +1,29 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+*.log
+vite-dev.log*
+
+# --- Environment / secrets ---
+.env
+.env.local
+*.env
+!.env.example
+
+# --- Database (regenerable from seed.py) ---
+database/tactcrm.db
+*.db
+*.sqlite
+*.sqlite3
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db

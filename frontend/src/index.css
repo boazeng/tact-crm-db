@@ -1,0 +1,26 @@
+@import './styles/tokens.css';
+@import './styles/recipes.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Form fields — make it obvious where you type, and emphasize the active field.
+   Applies app-wide (all inputs/selects/textareas use the shared inputStyle). */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, 0.18) !important;
+  background: #fff !important;
+}
+input:not([type="checkbox"]):not([type="radio"]):hover,
+select:hover,
+textarea:hover {
+  border-color: rgba(31, 58, 95, 0.45) !important;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #A9A295;
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="16" fill="#1F3A5F"/>
+  <!-- contact / person mark in cream -->
+  <circle cx="32" cy="25" r="9" fill="#FAF9F5"/>
+  <path d="M16 50c0-9.5 7.4-16 16-16s16 6.5 16 16v1a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2z" fill="#FAF9F5"/>
+  <!-- accent dot (T·A·C·T) -->
+  <circle cx="48" cy="16" r="5" fill="#D64A2E"/>
+</svg>
