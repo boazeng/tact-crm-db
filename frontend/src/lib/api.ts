@@ -577,6 +577,7 @@ export type IngestSummary = {
   total: number
   created: number
   updated: number
+  has_more?: boolean
   skipped: number
   errors: { key: string | null; error: string }[]
 }
@@ -599,6 +600,6 @@ export const PrioritySync = {
     api<PriorityFieldMap[]>('/api/priority-sync/mappings', { query: cq(companyId) }),
   saveMappings: (rows: PriorityFieldMap[], companyId?: number) =>
     api<PriorityFieldMap[]>('/api/priority-sync/mappings', { method: 'PUT', body: { rows }, query: cq(companyId) }),
-  ingest: (limit: number | null, companyId?: number) =>
-    api<IngestSummary>('/api/priority-sync/ingest', { method: 'POST', body: { limit }, query: cq(companyId) }),
+  ingest: (limit: number | null, offset: number | null, companyId?: number) =>
+    api<IngestSummary>('/api/priority-sync/ingest', { method: 'POST', body: { limit, offset }, query: cq(companyId) }),
 }

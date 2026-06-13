@@ -125,6 +125,6 @@ def ingest(
     """Pull customer records from this company's Priority connection and upsert
     them into the CRM per the saved mapping."""
     try:
-        return priority_ingest.ingest_customers(db, company_id, body.limit)
+        return priority_ingest.ingest_customers(db, company_id, body.limit, body.offset)
     except svc.PriorityError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e))

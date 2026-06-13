@@ -86,6 +86,22 @@ def _fetch_records(conn, limit: int | None):
         pages += 1
 
 
+def _fetch_window(conn, limit: int, offset: int) -> list[dict]:
+    """Fetch a single bounded window of records via OData ``$top``/``$skip``.
+
+    One HTTP request, hard-capped at ``limit`` rows, so a batch can never blow the
+    API Gateway 30s budget regardless of Priority's default page size. The client
+    walks the whole table by repeating with ``offset += limit``.
+    """
+    base = _base(conn)
+    entity = (conn.entity_name or "CUSTOMERS").strip()
+    sep = "&" if "?" in entity else "?"
+    url = f"{base}{entity}{sep}$top={int(limit)}&$skip={int(offset)}"
+    data = json.loads(_request(url, conn, "application/json").decode("utf-8", "replace"))
+    rows = [r for r in (data.get("value") or []) if isinstance(r, dict)]
+    return rows[:limit]
+
+
 # ---------- mapping a record onto a CustomerIn ----------
 def _empty_in() -> dict:
     return {
@@ -198,7 +214,9 @@ def _ingest_one(db: Session, company_id: int, rec: dict, maps, summary: dict) ->
     summary["updated" if membership_id else "created"] += 1
 
 
-def ingest_customers(db: Session, company_id: int, limit: int | None = None) -> dict:
+def ingest_customers(
+    db: Session, company_id: int, limit: int | None = None, offset: int | None = None
+) -> dict:
     conn = get_connection(db, company_id)
     if not conn or not (conn.base_url or "").strip():
         raise PriorityError("לא הוגדר חיבור פריורטי לחברה זו")
@@ -206,8 +224,23 @@ def ingest_customers(db: Session, company_id: int, limit: int | None = None) -> 
     if not maps:
         raise PriorityError("אין שדות ממופים לקליטה — הגדר מיפוי תחילה")
 
-    summary = {"total": 0, "created": 0, "updated": 0, "skipped": 0, "errors": []}
-    for rec in _fetch_records(conn, limit):
+    summary = {
+        "total": 0, "created": 0, "updated": 0, "skipped": 0,
+        "errors": [], "has_more": False,
+    }
+
+    # Windowed (batched) mode — one bounded request, driven by the client loop.
+    # Falls back to the original "stream everything" mode only when no offset is
+    # given (kept for scripts/CLI; the UI always batches to dodge the 30s timeout).
+    if offset is not None:
+        batch = limit or 150
+        records = _fetch_window(conn, batch, offset)
+        summary["has_more"] = len(records) >= batch
+        source = records
+    else:
+        source = _fetch_records(conn, limit)
+
+    for rec in source:
         summary["total"] += 1
         try:
             _ingest_one(db, company_id, rec, maps, summary)

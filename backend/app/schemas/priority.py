@@ -66,8 +66,13 @@ class TestResult(BaseModel):
 
 
 class IngestRequest(BaseModel):
-    # Optional cap on how many Priority records to ingest (for a trial run).
+    # Batch size for one call (number of Priority records to pull in this request).
+    # Kept small so each request finishes within the API Gateway 30s timeout; the
+    # client loops with a growing `offset` to ingest everyone.
     limit: int | None = None
+    # How many Priority records to skip before this batch (OData $skip). When None
+    # the old "stream everything in one call" behaviour is used (scripts/CLI only).
+    offset: int | None = None
 
 
 class IngestError(BaseModel):
@@ -81,3 +86,6 @@ class IngestSummary(BaseModel):
     updated: int
     skipped: int
     errors: list[IngestError] = []
+    # True when this batch came back full, i.e. there are probably more records to
+    # fetch — the client should call again with offset += limit.
+    has_more: bool = False

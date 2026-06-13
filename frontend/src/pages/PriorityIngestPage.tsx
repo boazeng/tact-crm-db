@@ -18,6 +18,7 @@ export default function PriorityIngestPage() {
   const [loading, setLoading] = useState(true)
   const [limit, setLimit] = useState('')          // empty = all
   const [running, setRunning] = useState(false)
+  const [progress, setProgress] = useState<string | null>(null)
   const [result, setResult] = useState<IngestSummary | null>(null)
 
   useEffect(() => {
@@ -38,21 +39,50 @@ export default function PriorityIngestPage() {
 
   const mapped = maps.filter((m) => m.is_imported && m.target_field)
 
+  // Pulled in small batches so each request stays under the API Gateway 30s
+  // timeout; we loop with a growing offset until Priority runs out of records.
+  const BATCH = 150
+  const MAX_BATCHES = 400 // safety net (~60k records) against a runaway loop
+
   async function run() {
     const n = mapped.length
-    const lim = limit.trim() ? Number(limit) : null
-    const scope = lim ? `${lim} הרשומות הראשונות` : 'כל הלקוחות'
+    const cap = limit.trim() ? Number(limit) : null  // optional total cap (trial run)
+    const scope = cap ? `${cap} הרשומות הראשונות` : 'כל הלקוחות'
     if (!confirm(`לקלוט ${scope} מפריורטי לפי ${n} השדות הממופים? לקוחות קיימים יעודכנו בשדות הממופים בלבד.`)) return
     setRunning(true)
     setResult(null)
+    setProgress('מתחיל…')
+
+    const agg: IngestSummary = { total: 0, created: 0, updated: 0, skipped: 0, errors: [] }
+    let offset = 0
     try {
-      const r = await PrioritySync.ingest(lim, cid)
-      setResult(r)
-      toast.success(`הקליטה הושלמה — ${r.created} נוצרו, ${r.updated} עודכנו${r.skipped ? `, ${r.skipped} דולגו` : ''}`)
+      for (let i = 0; i < MAX_BATCHES; i++) {
+        const remaining = cap ? cap - agg.total : Infinity
+        const size = cap ? Math.min(BATCH, remaining) : BATCH
+        if (size <= 0) break
+
+        const r = await PrioritySync.ingest(size, offset, cid)
+        agg.total += r.total
+        agg.created += r.created
+        agg.updated += r.updated
+        agg.skipped += r.skipped
+        if (agg.errors.length < 50) agg.errors.push(...r.errors.slice(0, 50 - agg.errors.length))
+        setProgress(`נקלטו ${agg.total} לקוחות${cap ? ` מתוך ${cap}` : ''}…`)
+
+        offset += size
+        if (!r.has_more) break
+        if (cap && agg.total >= cap) break
+      }
+      setResult(agg)
+      toast.success(`הקליטה הושלמה — ${agg.created} נוצרו, ${agg.updated} עודכנו${agg.skipped ? `, ${agg.skipped} דולגו` : ''}`)
     } catch (e) {
-      toast.error(String(e))
+      // Surface what we managed to ingest before the failure, so a partial run
+      // isn't lost on the user.
+      if (agg.total > 0) setResult(agg)
+      toast.error(`${String(e)}${agg.total > 0 ? ` (נקלטו ${agg.total} לפני התקלה)` : ''}`)
     } finally {
       setRunning(false)
+      setProgress(null)
     }
   }
 
@@ -120,6 +150,12 @@ export default function PriorityIngestPage() {
         <button className="tact-btn tact-btn-primary" onClick={run} disabled={running || !ready}>
           {running ? 'קולט…' : '⬇ קלוט נתוני לקוחות'}
         </button>
+        {running && progress && (
+          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-primary)' }}>{progress}</div>
+        )}
+      </div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--color-text-light)', marginBottom: 16 }}>
+        הקליטה רצה במנות של {BATCH} רשומות עד שכל הלקוחות נקלטים — אל תסגור את החלון עד לסיום.
       </div>
 
 
