@@ -19,10 +19,14 @@
       "Resource": "*"
     },
     {
-      "Sid": "ReadDeploySecrets",
+      "Sid": "ReadDeploySecretsAndPublicAmi",
       "Effect": "Allow",
       "Action": ["ssm:GetParameter", "ssm:GetParameters"],
-      "Resource": "arn:aws:ssm:us-east-1:824980746386:parameter/tact-crm-*"
+      "Resource": [
+        "arn:aws:ssm:us-east-1:824980746386:parameter/tact-crm-*",
+        "arn:aws:ssm:us-east-1::parameter/aws/service/*",
+        "arn:aws:ssm:us-east-1:824980746386:parameter/aws/service/*"
+      ]
     },
     {
       "Sid": "ManageStackRoles",
