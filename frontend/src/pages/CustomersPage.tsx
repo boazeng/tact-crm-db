@@ -161,6 +161,7 @@ export default function CustomersPage() {
         <DataTable
           rows={rows}
           rowKey={(r) => r.membership_id}
+          pageSize={50}
           columns={[
             { header: "מס' לקוח", key: 'customer_number', render: (r: Customer) => r.customer_number || '—' },
             { header: 'שם', key: 'full_name' },
