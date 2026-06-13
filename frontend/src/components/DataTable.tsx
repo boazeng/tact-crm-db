@@ -55,8 +55,23 @@ export default function DataTable<T>({ rows, columns, rowKey, empty, actions, co
   const end = paginated ? Math.min(start + perPage, rows.length) : rows.length
   const visibleRows = paginated ? rows.slice(start, end) : rows
 
+  const pager = (placement: 'top' | 'bottom') => (
+    <Pager
+      placement={placement}
+      total={rows.length}
+      start={start}
+      end={end}
+      page={safePage}
+      totalPages={totalPages}
+      perPage={perPage}
+      onPage={setPage}
+      onPerPage={setPerPage}
+    />
+  )
+
   return (
     <div>
+      {paginated && pager('top')}
       <div
         style={{
           background: 'var(--color-bg-white)',
@@ -121,23 +136,13 @@ export default function DataTable<T>({ rows, columns, rowKey, empty, actions, co
         </table>
       </div>
 
-      {paginated && (
-        <Pager
-          total={rows.length}
-          start={start}
-          end={end}
-          page={safePage}
-          totalPages={totalPages}
-          perPage={perPage}
-          onPage={setPage}
-          onPerPage={setPerPage}
-        />
-      )}
+      {paginated && pager('bottom')}
     </div>
   )
 }
 
 type PagerProps = {
+  placement: 'top' | 'bottom'
   total: number
   start: number
   end: number
@@ -148,7 +153,7 @@ type PagerProps = {
   onPerPage: (n: number) => void
 }
 
-function Pager({ total, start, end, page, totalPages, perPage, onPage, onPerPage }: PagerProps) {
+function Pager({ placement, total, start, end, page, totalPages, perPage, onPage, onPerPage }: PagerProps) {
   const sizeOptions = PAGE_SIZE_OPTIONS.includes(perPage)
     ? PAGE_SIZE_OPTIONS
     : [...PAGE_SIZE_OPTIONS, perPage].sort((a, b) => a - b)
@@ -172,7 +177,8 @@ function Pager({ total, start, end, page, totalPages, perPage, onPage, onPerPage
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: 12,
-        marginTop: 12,
+        marginTop: placement === 'bottom' ? 12 : 0,
+        marginBottom: placement === 'top' ? 12 : 0,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: 'var(--color-text-light)' }}>
