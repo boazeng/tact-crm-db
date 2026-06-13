@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
-from ..auth.passwords import verify_password
+from ..auth.passwords import hash_password, verify_password
 from ..auth.tokens import issue_token
 from ..config import settings
 from ..deps import get_current_user, get_db
@@ -37,6 +37,11 @@ class CurrentUser(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class DevLoginRequest(BaseModel):
@@ -131,6 +136,29 @@ def list_dev_users(db: Session = Depends(get_db)):
         )
         for user, company in rows
     ]
+
+
+@router.post("/change-password")
+def change_password(
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Self-service password change for the logged-in user. Verifies the current
+    password before setting the new one."""
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="הסיסמה הנוכחית שגויה",
+        )
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="הסיסמה החדשה חייבת להכיל לפחות 8 תווים",
+        )
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/me", response_model=CurrentUser)

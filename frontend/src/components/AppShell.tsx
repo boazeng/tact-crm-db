@@ -1,8 +1,9 @@
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import TactLogo from './TactLogo'
 import TactIcon from './TactIcon'
 import CompanyPicker from './CompanyPicker'
+import ChangePasswordModal from './ChangePasswordModal'
 
 export type NavKey =
   | 'dashboard'
@@ -57,6 +58,7 @@ type Props = {
 export default function AppShell({ current, onNavigate, children }: Props) {
   const { user, logout } = useAuth()
   const items = visibleNav(user?.role)
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   return (
     <div className="tact-aurora" style={{ display: 'flex', minHeight: '100vh' }}>
@@ -153,6 +155,13 @@ export default function AppShell({ current, onNavigate, children }: Props) {
             </button>
           )}
           <button
+            onClick={() => setShowChangePassword(true)}
+            className="tact-btn tact-btn-ghost"
+            style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', marginBottom: 8 }}
+          >
+            שינוי סיסמה
+          </button>
+          <button
             onClick={logout}
             className="tact-btn tact-btn-ghost"
             style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem' }}
@@ -161,6 +170,10 @@ export default function AppShell({ current, onNavigate, children }: Props) {
           </button>
         </div>
       </aside>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
 
       {/* Main */}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>

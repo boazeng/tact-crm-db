@@ -153,6 +153,7 @@ export type Customer = {
   email: string | null
   allow_mailing: boolean
   notes: string | null
+  creation_date: string | null
   params: (string | null)[]
   numbers: (number | null)[]
   flags: boolean[]
@@ -184,6 +185,7 @@ export type CustomerInput = {
   email?: string | null
   allow_mailing?: boolean
   notes?: string | null
+  creation_date?: string | null
   params?: (string | null)[]
   numbers?: (number | null)[]
   flags?: boolean[]
@@ -233,6 +235,11 @@ export const Auth = {
       auth: false,
     }),
   me: () => api<CurrentUser>('/api/auth/me'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api<{ ok: boolean }>('/api/auth/change-password', {
+      method: 'POST',
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
 }
 
 export const Dashboard = {
@@ -365,6 +372,7 @@ export type Project = {
   customer_membership_id: number | null
   customer_name: string | null
   notes: string | null
+  creation_date: string | null
   params: (string | null)[]
   numbers: (number | null)[]
   flags: boolean[]
@@ -379,6 +387,7 @@ export type ProjectInput = {
   description?: string | null
   customer_membership_id?: number | null
   notes?: string | null
+  creation_date?: string | null
   params?: (string | null)[]
   numbers?: (number | null)[]
   flags?: boolean[]
@@ -475,7 +484,14 @@ export type PriorityConnectionInput = {
 }
 
 /** A field discovered live from Priority (left side of the mapping). */
-export type PriorityField = { name: string; type: string; label: string; sample?: string }
+export type PriorityField = {
+  name: string
+  type: string
+  label: string
+  sample?: string
+  description?: string   // Hebrew explanation of the Priority field
+  suggested?: string     // recommended CRM target key, or '-' to skip
+}
 
 /** A CRM target field (right side of the mapping). */
 export type SystemField = { key: string; label: string; group: string }
@@ -487,6 +503,14 @@ export type PriorityFieldMap = {
   target_field: string | null
   is_imported: boolean
   sort_order: number
+}
+
+export type IngestSummary = {
+  total: number
+  created: number
+  updated: number
+  skipped: number
+  errors: { key: string | null; error: string }[]
 }
 
 export const PrioritySync = {
@@ -507,4 +531,6 @@ export const PrioritySync = {
     api<PriorityFieldMap[]>('/api/priority-sync/mappings', { query: cq(companyId) }),
   saveMappings: (rows: PriorityFieldMap[], companyId?: number) =>
     api<PriorityFieldMap[]>('/api/priority-sync/mappings', { method: 'PUT', body: { rows }, query: cq(companyId) }),
+  ingest: (limit: number | null, companyId?: number) =>
+    api<IngestSummary>('/api/priority-sync/ingest', { method: 'POST', body: { limit }, query: cq(companyId) }),
 }
