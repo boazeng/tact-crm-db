@@ -21,6 +21,9 @@ type AuthState = {
   loading: boolean
   /** For super_admin: the company they're currently inspecting. Null for non-super. */
   activeCompanyId: number | null
+  /** Production login: email + password. */
+  login: (email: string, password: string) => Promise<void>
+  /** Dev-only convenience login: pick a user by email, no password. */
   loginAs: (email: string) => Promise<void>
   logout: () => void
   setActiveCompany: (id: number | null) => void
@@ -52,8 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh()
   }, [refresh])
 
-  const loginAs = useCallback(async (email: string) => {
-    const { access_token, user: me } = await Auth.devLogin(email)
+  const applySession = useCallback((access_token: string, me: CurrentUser) => {
     setToken(access_token)
     setUser(me)
     // For non-super_admin set their own company as active; super_admin must pick.
@@ -65,6 +67,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActiveCompanyIdState(null)
     }
   }, [])
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { access_token, user: me } = await Auth.login(email, password)
+      applySession(access_token, me)
+    },
+    [applySession],
+  )
+
+  const loginAs = useCallback(
+    async (email: string) => {
+      const { access_token, user: me } = await Auth.devLogin(email)
+      applySession(access_token, me)
+    },
+    [applySession],
+  )
 
   const logout = useCallback(() => {
     clearToken()
@@ -82,12 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       activeCompanyId,
+      login,
       loginAs,
       logout,
       setActiveCompany,
       refresh,
     }),
-    [user, loading, activeCompanyId, loginAs, logout, setActiveCompany, refresh],
+    [user, loading, activeCompanyId, login, loginAs, logout, setActiveCompany, refresh],
   )
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>

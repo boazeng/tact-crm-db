@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # CWD never matters). For Postgres set:
     # DATABASE_URL=postgresql+psycopg2://crm:crm@localhost:5432/crm
     database_url: str = f"sqlite:///{DB_FILE.as_posix()}"
+    # Postgres connection pool. Small by default: on Lambda each warm container
+    # holds its own pool, so a big pool × many concurrent containers exhausts
+    # RDS max_connections. Keep tiny and cap Lambda reserved concurrency instead.
+    db_pool_size: int = 2
+    db_max_overflow: int = 3
     cors_origins: str = "http://localhost:5173"
 
     # JWT — replace in production with a long random value via .env

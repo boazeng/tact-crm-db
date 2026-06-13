@@ -24,6 +24,11 @@ database/tactcrm.db
 *.sqlite
 *.sqlite3
 
+# --- AWS SAM build artifacts ---
+.aws-sam/
+infra/out.json
+packaged.yaml
+
 # --- OS / IDE ---
 .DS_Store
 Thumbs.db

@@ -219,6 +219,12 @@ export type DashboardResponse = {
 const cq = (companyId?: number) => ({ company_id: companyId })
 
 export const Auth = {
+  login: (email: string, password: string) =>
+    api<{ access_token: string; user: CurrentUser }>('/api/auth/login', {
+      method: 'POST',
+      body: { email, password },
+      auth: false,
+    }),
   devUsers: () => api<DevUserOption[]>('/api/auth/dev-users', { auth: false }),
   devLogin: (email: string) =>
     api<{ access_token: string; user: CurrentUser }>('/api/auth/dev-login', {
@@ -446,4 +452,59 @@ export const ApiKeys = {
     api<ApiKeyCreated>('/api/api-keys', { method: 'POST', body: { label }, query: cq(companyId) }),
   remove: (id: number, companyId?: number) =>
     api<void>(`/api/api-keys/${id}`, { method: 'DELETE', query: cq(companyId) }),
+}
+
+// ---------- Priority sync ----------
+export type PriorityConnection = {
+  base_url: string
+  username: string | null
+  entity_name: string
+  is_active: boolean
+  password_set: boolean
+  last_tested_at: string | null
+  last_test_ok: boolean | null
+  last_test_msg: string | null
+}
+
+export type PriorityConnectionInput = {
+  base_url: string
+  username?: string | null
+  password?: string | null   // empty → keep stored secret
+  entity_name: string
+  is_active?: boolean
+}
+
+/** A field discovered live from Priority (left side of the mapping). */
+export type PriorityField = { name: string; type: string; label: string; sample?: string }
+
+/** A CRM target field (right side of the mapping). */
+export type SystemField = { key: string; label: string; group: string }
+
+export type PriorityFieldMap = {
+  priority_field: string
+  priority_label: string | null
+  priority_type: string | null
+  target_field: string | null
+  is_imported: boolean
+  sort_order: number
+}
+
+export const PrioritySync = {
+  getConnection: (companyId?: number) =>
+    api<PriorityConnection | null>('/api/priority-sync/connection', { query: cq(companyId) }),
+  saveConnection: (body: PriorityConnectionInput, companyId?: number) =>
+    api<PriorityConnection>('/api/priority-sync/connection', { method: 'PUT', body, query: cq(companyId) }),
+  testConnection: (companyId?: number) =>
+    api<{ ok: boolean; message: string }>('/api/priority-sync/connection/test', {
+      method: 'POST',
+      query: cq(companyId),
+    }),
+  priorityFields: (companyId?: number) =>
+    api<PriorityField[]>('/api/priority-sync/priority-fields', { query: cq(companyId) }),
+  systemFields: (companyId?: number) =>
+    api<SystemField[]>('/api/priority-sync/system-fields', { query: cq(companyId) }),
+  mappings: (companyId?: number) =>
+    api<PriorityFieldMap[]>('/api/priority-sync/mappings', { query: cq(companyId) }),
+  saveMappings: (rows: PriorityFieldMap[], companyId?: number) =>
+    api<PriorityFieldMap[]>('/api/priority-sync/mappings', { method: 'PUT', body: { rows }, query: cq(companyId) }),
 }

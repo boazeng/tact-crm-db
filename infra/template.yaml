@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  TACT-CRM — serverless deployment.
+  FastAPI (Lambda + Mangum) behind an HTTP API, a private RDS PostgreSQL, and a
+  React SPA on S3 served by CloudFront. CloudFront routes /api/* to the API and
+  everything else to S3, so the browser talks to ONE origin (no CORS) and RDS is
+  never exposed to the internet.
+
+# W1011: secrets are passed as NoEcho parameters (encrypted at rest in Lambda
+# env). Moving them to Secrets Manager is a deliberate Phase-2 hardening step
+# (needs a VPC endpoint, since the Lambda has no internet route) — see DEPLOY.md.
+Metadata:
+  cfn-lint:
+    config:
+      ignore_checks:
+        - W1011
+
+# ---------------------------------------------------------------------------
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for Lambda + RDS (use the default VPC unless you have another).
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least two subnets in different AZs (RDS subnet group needs 2+).
+  DBUsername:
+    Type: String
+    Default: crmadmin
+    Description: Master username for the RDS PostgreSQL instance.
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: Master password for RDS (>=12 chars, no '/', '@', '"', or spaces).
+  DBName:
+    Type: String
+    Default: tactcrm
+  DBInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Long random string for signing JWTs.
+  SeedAdminEmail:
+    Type: String
+    Description: Email of the first super_admin (created by the migrate function).
+  SeedAdminPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 10
+    Description: Password for the first super_admin.
+
+# ---------------------------------------------------------------------------
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 512
+    Architectures: [arm64]   # t4g/Graviton-friendly and cheaper
+
+# ---------------------------------------------------------------------------
+Resources:
+
+  # --- Networking: security groups ---------------------------------------
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: TACT-CRM Lambda - egress only (reaches RDS in-VPC).
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: TACT-CRM RDS - Postgres 5432 from the Lambda SG only.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+  # --- Database ----------------------------------------------------------
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: TACT-CRM RDS subnet group
+      SubnetIds: !Ref SubnetIds
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    # Keep a final snapshot if the stack is ever deleted — never silently lose data.
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: tact-crm-db
+      Engine: postgres
+      EngineVersion: '16.10'
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DbSecurityGroup
+      PubliclyAccessible: false
+      MultiAZ: false            # flip to true for production HA (doubles DB cost)
+      BackupRetentionPeriod: 7
+      DeletionProtection: false # set true once it holds real data
+
+  # --- Backend: FastAPI on Lambda ----------------------------------------
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: tact-crm-api
+      CodeUri: ../backend/
+      Handler: app.lambda_handler.handler
+      # Cap concurrency so we never exceed RDS max_connections
+      # (each warm container holds up to db_pool_size+overflow connections).
+      ReservedConcurrentExecutions: 10
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          APP_ENV: production
+          ENABLE_DEV_LOGIN: 'false'
+          JWT_SECRET: !Ref JwtSecret
+          DATABASE_URL: !Sub
+            - postgresql+psycopg2://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
+            - Endpoint: !GetAtt Database.Endpoint.Address
+          # CORS is unused (same-origin via CloudFront) but kept harmless/explicit.
+          CORS_ORIGINS: '*'
+      Events:
+        Proxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /
+            Method: ANY
+
+  # --- Migration / bootstrap function (invoked manually post-deploy) -----
+  MigrateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: tact-crm-migrate
+      CodeUri: ../backend/
+      Handler: app.lambda_handler.migrate_handler
+      Timeout: 120
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          APP_ENV: production
+          JWT_SECRET: !Ref JwtSecret
+          DATABASE_URL: !Sub
+            - postgresql+psycopg2://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
+            - Endpoint: !GetAtt Database.Endpoint.Address
+          SEED_ADMIN_EMAIL: !Ref SeedAdminEmail
+          SEED_ADMIN_PASSWORD: !Ref SeedAdminPassword
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      # $default stage → no stage prefix in the path, so CloudFront can forward
+      # /api/... straight through and FastAPI sees the same path.
+      StageName: $default
+
+  # --- Frontend: private S3 bucket + CloudFront (OAC) --------------------
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub tact-crm-frontend-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub tact-crm-oac-${AWS::AccountId}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        # SPA routing: serve index.html for client-side routes (S3 404/403).
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        Origins:
+          - Id: s3-frontend
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref OriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: api-gateway
+            DomainName: !Sub ${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: s3-frontend
+          ViewerProtocolPolicy: redirect-to-https
+          # Managed CachePolicy: CachingOptimized
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: api-gateway
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            # Managed CachePolicy: CachingDisabled
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            # Managed OriginRequestPolicy: AllViewerExceptHostHeader
+            # (forwards Authorization + query, but lets API Gateway keep its own Host)
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+# ---------------------------------------------------------------------------
+Outputs:
+  SiteURL:
+    Description: Public app URL (open this in the browser).
+    Value: !Sub https://${Distribution.DomainName}
+  ApiEndpoint:
+    Description: Raw HTTP API endpoint (debugging only — use SiteURL normally).
+    Value: !GetAtt HttpApi.ApiEndpoint
+  FrontendBucketName:
+    Description: S3 bucket to sync the built frontend into.
+    Value: !Ref FrontendBucket
+  DistributionId:
+    Description: CloudFront distribution id (for cache invalidation after deploys).
+    Value: !Ref Distribution
+  MigrateFunctionName:
+    Description: Invoke this once after deploy to create tables + super_admin.
+    Value: !Ref MigrateFunction
+  DBEndpoint:
+    Description: RDS endpoint (private).
+    Value: !GetAtt Database.Endpoint.Address

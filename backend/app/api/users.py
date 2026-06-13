@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..auth.passwords import hash_password
 from ..deps import get_db, require_company_admin
 from ..models import Company, User, UserRole
 from ..schemas.admin import UserIn, UserOut
@@ -75,6 +76,7 @@ def create_user(
         role=body.role,
         company_id=target_company,
         is_active=body.is_active,
+        password_hash=hash_password(body.password) if body.password else None,
     )
     db.add(user)
     try:
@@ -117,6 +119,8 @@ def update_user(
         else _enforce_company_scope(actor, body.company_id, db)
     )
     user.is_active = body.is_active
+    if body.password:
+        user.password_hash = hash_password(body.password)
     try:
         db.commit()
     except IntegrityError:

@@ -16,6 +16,7 @@ from .api import (
     list_fields,
     number_labels,
     param_labels,
+    priority,
     project_field_labels,
     projects,
     public_api,
@@ -37,6 +38,11 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def _init_db():
+        # Zero-config schema for local dev only. In production the schema is owned
+        # by Alembic / the deploy-time bootstrap (app.bootstrap), so we never let
+        # every Lambda cold start hammer RDS with a create_all.
+        if not settings.is_dev:
+            return
         # Import models so they are registered on Base.metadata before create_all.
         from . import models  # noqa: F401
 
@@ -59,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(customers.router)
     app.include_router(api_keys.router)
     app.include_router(public_api.router)
+    app.include_router(priority.router)
     return app
 
 

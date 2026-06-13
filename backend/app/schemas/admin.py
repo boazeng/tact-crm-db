@@ -33,6 +33,9 @@ class UserIn(BaseModel):
     role: str
     company_id: int | None = None
     is_active: bool = True
+    # Optional. On create: sets the login password. On update: a non-empty value
+    # resets it; omitted/empty leaves the stored hash untouched.
+    password: str | None = None
 
 
 class UserOut(BaseModel):

@@ -1,9 +1,15 @@
-"""Authentication endpoints. Dev-login flow only — Google OAuth will replace
-the `/dev-login` endpoint and use the same `issue_token` helper."""
+"""Authentication endpoints.
+
+Two login paths share the same `issue_token` helper and token shape:
+  • POST /login      — email + password (production). Always available.
+  • POST /dev-login  — email only, no password (dev convenience). Gated by
+                       settings.enable_dev_login; returns 404 when disabled.
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
+from ..auth.passwords import verify_password
 from ..auth.tokens import issue_token
 from ..config import settings
 from ..deps import get_current_user, get_db
@@ -26,6 +32,11 @@ class CurrentUser(BaseModel):
     role: str
     company_id: int | None
     company_name: str | None
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
 class DevLoginRequest(BaseModel):
@@ -56,6 +67,24 @@ def _serialize_user(user: User, db: Session) -> CurrentUser:
         company_id=user.company_id,
         company_name=company_name,
     )
+
+
+@router.post("/login", response_model=TokenResponse)
+def login(body: LoginRequest, db: Session = Depends(get_db)):
+    """Production login: verify email + password (bcrypt). One generic error for
+    'no such user', 'inactive', and 'wrong password' — never leak which failed."""
+    user = (
+        db.query(User)
+        .filter(User.email == body.email, User.is_active.is_(True))
+        .first()
+    )
+    if not user or not verify_password(body.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    token = issue_token(user.id)
+    return TokenResponse(access_token=token, user=_serialize_user(user, db))
 
 
 @router.post("/dev-login", response_model=TokenResponse)
