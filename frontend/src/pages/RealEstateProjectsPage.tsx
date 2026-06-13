@@ -125,6 +125,7 @@ export default function RealEstateProjectsPage() {
         <DataTable
           rows={rows}
           rowKey={(r) => r.id}
+          pageSize={50}
           columns={[
             { header: "מס' פרויקט", key: 'project_number', render: (r: RealEstateProject) => r.project_number || '—' },
             { header: 'שם', key: 'name' },

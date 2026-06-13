@@ -176,6 +176,7 @@ export default function LeadsPage() {
         <DataTable
           rows={rows}
           rowKey={(r) => r.membership_id}
+          pageSize={50}
           columns={[
             { header: "מס'", key: 'customer_number', render: (r: Customer) => r.customer_number || '—' },
             { header: 'שם', key: 'full_name' },
