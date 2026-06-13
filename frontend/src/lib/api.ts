@@ -430,6 +430,74 @@ export const ProjectFieldLabels = {
     api<ProjectFieldLabel[]>('/api/project-field-labels/order', { method: 'PUT', body: { order }, query: cq(companyId) }),
 }
 
+// ---------- Real-estate projects ----------
+export type RealEstateProject = {
+  id: number
+  company_id: number
+  project_number: string | null
+  name: string
+  description: string | null
+  customer_membership_id: number | null
+  customer_name: string | null
+  notes: string | null
+  creation_date: string | null
+  params: (string | null)[]
+  numbers: (number | null)[]
+  flags: boolean[]
+  lists: (string | null)[]
+  created_at: string
+  updated_at: string
+}
+
+export type RealEstateProjectInput = {
+  project_number?: string | null
+  name: string
+  description?: string | null
+  customer_membership_id?: number | null
+  notes?: string | null
+  creation_date?: string | null
+  params?: (string | null)[]
+  numbers?: (number | null)[]
+  flags?: boolean[]
+  lists?: (string | null)[]
+}
+
+export const RealEstateProjects = {
+  list: (companyId?: number, search?: string) =>
+    api<RealEstateProject[]>('/api/realestate-projects', { query: { company_id: companyId, search } }),
+  get: (id: number, companyId?: number) =>
+    api<RealEstateProject>(`/api/realestate-projects/${id}`, { query: cq(companyId) }),
+  create: (body: RealEstateProjectInput, companyId?: number) =>
+    api<RealEstateProject>('/api/realestate-projects', { method: 'POST', body, query: cq(companyId) }),
+  update: (id: number, body: RealEstateProjectInput, companyId?: number) =>
+    api<RealEstateProject>(`/api/realestate-projects/${id}`, { method: 'PUT', body, query: cq(companyId) }),
+  remove: (id: number, companyId?: number) =>
+    api<void>(`/api/realestate-projects/${id}`, { method: 'DELETE', query: cq(companyId) }),
+}
+
+export type RealEstateProjectFieldKind = 'param' | 'number' | 'flag' | 'list'
+export type RealEstateProjectFieldLabel = {
+  kind: RealEstateProjectFieldKind
+  idx: number
+  label: string
+  options: string[]
+  is_active: boolean
+  sort_order: number
+}
+
+export type RealEstateProjectFieldRef = { kind: RealEstateProjectFieldKind; idx: number }
+// The label fields the editor sends; sort_order is owned by the reorder endpoint.
+export type RealEstateProjectFieldLabelInput = Omit<RealEstateProjectFieldLabel, 'sort_order'>
+
+export const RealEstateProjectFieldLabels = {
+  list: (companyId?: number) =>
+    api<RealEstateProjectFieldLabel[]>('/api/realestate-project-field-labels', { query: cq(companyId) }),
+  update: (labels: RealEstateProjectFieldLabelInput[], companyId?: number) =>
+    api<RealEstateProjectFieldLabel[]>('/api/realestate-project-field-labels', { method: 'PUT', body: { labels }, query: cq(companyId) }),
+  reorder: (order: RealEstateProjectFieldRef[], companyId?: number) =>
+    api<RealEstateProjectFieldLabel[]>('/api/realestate-project-field-labels/order', { method: 'PUT', body: { order }, query: cq(companyId) }),
+}
+
 export const Customers = {
   list: (
     companyId?: number,

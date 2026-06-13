@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage'
 import CustomersPage from './pages/CustomersPage'
 import LeadsPage from './pages/LeadsPage'
 import ProjectsPage from './pages/ProjectsPage'
+import RealEstateProjectsPage from './pages/RealEstateProjectsPage'
 import CustomerEditPage from './pages/CustomerEditPage'
 import CompanyAdminPage from './pages/CompanyAdminPage'
 import ApiKeysPage from './pages/ApiKeysPage'
@@ -56,6 +57,7 @@ function ProtectedShell() {
       {safe === 'dashboard' && <DashboardPage />}
       {safe === 'customers' && <CustomersPage />}
       {safe === 'projects' && <ProjectsPage />}
+      {safe === 'realestate_projects' && <RealEstateProjectsPage />}
       {safe === 'leads' && <LeadsPage />}
       {safe === 'company' && <CompanyAdminPage />}
       {safe === 'api_keys' && <ApiKeysPage />}

@@ -9,6 +9,7 @@ export type NavKey =
   | 'dashboard'
   | 'customers'
   | 'projects'
+  | 'realestate_projects'
   | 'leads'
   | 'company'
   | 'api_keys'
@@ -27,6 +28,7 @@ const ALL_NAV: NavItem[] = [
   { key: 'dashboard', label: 'דאשבורד',  icon: 'dashboard', roles: ['super_admin', 'company_admin', 'company_user'] },
   { key: 'customers', label: 'לקוחות',    icon: 'users',      roles: ['super_admin', 'company_admin', 'company_user'] },
   { key: 'projects',  label: 'פרויקטים',  icon: 'briefcase',  roles: ['super_admin', 'company_admin', 'company_user'] },
+  { key: 'realestate_projects', label: 'פרויקטים בנדלן בדק', icon: 'briefcase', roles: ['super_admin', 'company_admin', 'company_user'] },
   { key: 'leads',     label: 'לידים',     icon: 'user-plus',  roles: ['super_admin', 'company_admin', 'company_user'] },
   { key: 'company',   label: 'ניהול חברה', icon: 'building',   roles: ['super_admin', 'company_admin'] },
   { key: 'api_keys',  label: 'מפתחות API', icon: 'key',       roles: ['super_admin', 'company_admin'] },

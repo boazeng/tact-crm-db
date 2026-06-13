@@ -6,10 +6,12 @@ import ParamLabelsPage from './ParamLabelsPage'
 import DisplayColumnsPage from './DisplayColumnsPage'
 import ProjectFieldLabelsPage from './ProjectFieldLabelsPage'
 import ProjectFieldOrderPage from './ProjectFieldOrderPage'
+import RealEstateProjectFieldLabelsPage from './RealEstateProjectFieldLabelsPage'
+import RealEstateProjectFieldOrderPage from './RealEstateProjectFieldOrderPage'
 import PrioritySyncPage from './PrioritySyncPage'
 import PriorityIngestPage from './PriorityIngestPage'
 
-type Section = 'customers' | 'projects' | 'leads'
+type Section = 'customers' | 'projects' | 'realestate_projects' | 'leads'
 
 type Sub = { k: string; l: string; el: JSX.Element; superOnly?: boolean }
 
@@ -33,6 +35,14 @@ const SECTIONS: { k: Section; l: string; subs: Sub[] }[] = [
     subs: [
       { k: 'project_fields', l: 'שדות פרויקט', el: <ProjectFieldLabelsPage /> },
       { k: 'project_order', l: 'סדר הצגה', el: <ProjectFieldOrderPage /> },
+    ],
+  },
+  {
+    k: 'realestate_projects',
+    l: 'פרויקטים בנדלן בדק',
+    subs: [
+      { k: 're_project_fields', l: 'שדות פרויקט', el: <RealEstateProjectFieldLabelsPage /> },
+      { k: 're_project_order', l: 'סדר הצגה', el: <RealEstateProjectFieldOrderPage /> },
     ],
   },
   {
@@ -65,6 +75,7 @@ export default function CompanyAdminPage() {
   const [subBySection, setSubBySection] = useState<Record<Section, string>>({
     customers: 'roles',
     projects: 'project_fields',
+    realestate_projects: 're_project_fields',
     leads: '',
   })
 

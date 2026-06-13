@@ -18,6 +18,8 @@ from .api import (
     param_labels,
     project_field_labels,
     projects,
+    realestate_project_field_labels,
+    realestate_projects,
     public_api,
     role_options,
     users,
@@ -61,6 +63,8 @@ def create_app() -> FastAPI:
     app.include_router(display_columns.router)
     app.include_router(projects.router)
     app.include_router(project_field_labels.router)
+    app.include_router(realestate_projects.router)
+    app.include_router(realestate_project_field_labels.router)
     app.include_router(customers.router)
     app.include_router(api_keys.router)
     app.include_router(public_api.router)
