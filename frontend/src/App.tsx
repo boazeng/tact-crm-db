@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/AuthContext'
+import { ToastProvider } from './lib/Toast'
 import AppShell, { visibleNav, canSystemAdmin, type NavKey } from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -65,8 +66,10 @@ function ProtectedShell() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ProtectedShell />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <ProtectedShell />
+      </AuthProvider>
+    </ToastProvider>
   )
 }

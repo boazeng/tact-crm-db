@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Auth, type DevUserOption } from '../lib/api'
 import { useAuth } from '../lib/AuthContext'
+import { useToast } from '../lib/Toast'
 import TactLogo from '../components/TactLogo'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -31,12 +32,12 @@ const labelStyle: React.CSSProperties = {
 
 export default function LoginPage() {
   const { login, loginAs } = useAuth()
+  const toast = useToast()
 
   // --- Production email + password ---
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   // --- Dev quick-login (only rendered when /dev-users is reachable) ---
   const [devUsers, setDevUsers] = useState<DevUserOption[]>([])
@@ -57,11 +58,10 @@ export default function LoginPage() {
     e.preventDefault()
     if (!email || !password) return
     setSubmitting(true)
-    setError(null)
     try {
       await login(email, password)
     } catch {
-      setError('אימייל או סיסמה שגויים')
+      toast.error('אימייל או סיסמה שגויים')
     } finally {
       setSubmitting(false)
     }
@@ -71,11 +71,10 @@ export default function LoginPage() {
     e.preventDefault()
     if (!devSelected) return
     setDevSubmitting(true)
-    setError(null)
     try {
       await loginAs(devSelected)
     } catch (err) {
-      setError(String(err))
+      toast.error(String(err))
     } finally {
       setDevSubmitting(false)
     }
@@ -135,10 +134,6 @@ export default function LoginPage() {
             dir="ltr"
             style={inputStyle}
           />
-
-          {error && (
-            <div style={{ color: 'var(--color-accent)', marginTop: 12 }}>{error}</div>
-          )}
 
           <button
             type="submit"

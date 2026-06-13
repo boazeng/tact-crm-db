@@ -8,6 +8,7 @@ import {
 import PriorityConnectionCard from '../components/PriorityConnectionCard'
 import { inputStyle } from '../components/Modal'
 import { useAuth, useEffectiveCompanyId } from '../lib/AuthContext'
+import { useToast } from '../lib/Toast'
 
 // Per-row mapping state, keyed by the Priority field name.
 type MapEntry = {
@@ -20,6 +21,7 @@ type MapEntry = {
 
 export default function PrioritySyncPage() {
   const { user } = useAuth()
+  const toast = useToast()
   const companyId = useEffectiveCompanyId()
   const cid = user?.role === 'super_admin' ? companyId ?? undefined : undefined
   const needsCompany = user?.role === 'super_admin' && !companyId
@@ -31,8 +33,6 @@ export default function PrioritySyncPage() {
   const [loading, setLoading] = useState(true)
   const [fetching, setFetching] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [note, setNote] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [filter, setFilter] = useState('')
   const [onlyMapped, setOnlyMapped] = useState(false)
@@ -66,7 +66,7 @@ export default function PrioritySyncPage() {
         setMap(m)
         setFields(f)
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => toast.error(String(e)))
       .finally(() => setLoading(false))
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,8 +75,6 @@ export default function PrioritySyncPage() {
   // Pull the live field list from Priority and merge with current mappings.
   async function loadPriorityFields() {
     setFetching(true)
-    setError(null)
-    setNote(null)
     try {
       const live = await PrioritySync.priorityFields(cid)
       setMap((prev) => {
@@ -100,9 +98,9 @@ export default function PrioritySyncPage() {
         for (const pf of live) byName.set(pf.name, pf)
         return Array.from(byName.values())
       })
-      setNote(`נטענו ${live.length} שדות מפריורטי`)
+      toast.success(`נטענו ${live.length} שדות מפריורטי`)
     } catch (e) {
-      setError(String(e))
+      toast.error(String(e))
     } finally {
       setFetching(false)
     }
@@ -115,8 +113,6 @@ export default function PrioritySyncPage() {
 
   async function save() {
     setSaving(true)
-    setError(null)
-    setNote(null)
     try {
       const rows = fields.map((f, i) => {
         const e = map[f.name]
@@ -130,10 +126,10 @@ export default function PrioritySyncPage() {
         }
       })
       const saved = await PrioritySync.saveMappings(rows, cid)
-      setNote(`המיפוי נשמר (${saved.length} שדות)`)
+      toast.success(`המיפוי נשמר (${saved.length} שדות)`)
       setDirty(false)
     } catch (e) {
-      setError(String(e))
+      toast.error(String(e))
     } finally {
       setSaving(false)
     }
@@ -162,7 +158,7 @@ export default function PrioritySyncPage() {
       return next
     })
     setDirty(true)
-    setNote('הוחל מיפוי מומלץ — עבור על השדות ולחץ "שמירת מיפוי"')
+    toast.info('הוחל מיפוי מומלץ — עבור על השדות ולחץ "שמירת מיפוי"')
   }
 
   // Mark every field that has no target as "do not import".
@@ -182,7 +178,7 @@ export default function PrioritySyncPage() {
       return next
     })
     setDirty(true)
-    setNote('כל השדות הלא-ממופים סומנו כ"לא לקלוט"')
+    toast.info('כל השדות הלא-ממופים סומנו כ"לא לקלוט"')
   }
 
   // Count of fields that are still "to import" but have no target yet.
@@ -301,8 +297,6 @@ export default function PrioritySyncPage() {
         </div>
       </div>
 
-      {error && <div style={{ color: 'var(--color-accent)', marginBottom: 10 }}>{error}</div>}
-      {note && <div style={{ color: 'var(--color-success, #2e9e6b)', marginBottom: 10 }}>{note}</div>}
 
       {fields.length === 0 ? (
         <div className="tact-kpi" style={{ textAlign: 'center', padding: 28 }}>

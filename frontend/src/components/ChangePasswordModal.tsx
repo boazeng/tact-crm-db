@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Auth } from '../lib/api'
+import { useToast } from '../lib/Toast'
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -21,31 +22,30 @@ const labelStyle: React.CSSProperties = {
 }
 
 export default function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const toast = useToast()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
     if (next.length < 8) {
-      setError('הסיסמה החדשה חייבת להכיל לפחות 8 תווים')
+      toast.error('הסיסמה החדשה חייבת להכיל לפחות 8 תווים')
       return
     }
     if (next !== confirm) {
-      setError('הסיסמה החדשה ואימותה אינם תואמים')
+      toast.error('הסיסמה החדשה ואימותה אינם תואמים')
       return
     }
     setSubmitting(true)
     try {
       await Auth.changePassword(current, next)
-      setDone(true)
+      toast.success('הסיסמה שונתה בהצלחה')
+      onClose()
     } catch (err) {
       // ApiError carries the server's Hebrew detail (e.g. wrong current password)
-      setError(err instanceof Error ? err.message : 'שגיאה בשינוי הסיסמה')
+      toast.error(err instanceof Error ? err.message : 'שגיאה בשינוי הסיסמה')
     } finally {
       setSubmitting(false)
     }
@@ -78,21 +78,7 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
           שינוי סיסמה
         </h2>
 
-        {done ? (
-          <>
-            <p style={{ color: 'var(--color-text-light)', fontSize: '0.9rem', margin: '14px 0 20px' }}>
-              הסיסמה שונתה בהצלחה. ✅
-            </p>
-            <button
-              className="tact-btn tact-btn-primary"
-              style={{ width: '100%' }}
-              onClick={onClose}
-            >
-              סגור
-            </button>
-          </>
-        ) : (
-          <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit}>
             <label style={labelStyle}>סיסמה נוכחית</label>
             <input
               type="password"
@@ -121,12 +107,6 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
               style={inputStyle}
             />
 
-            {error && (
-              <div style={{ color: 'var(--color-accent)', marginTop: 12, fontSize: '0.85rem' }}>
-                {error}
-              </div>
-            )}
-
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button
                 type="button"
@@ -147,7 +127,6 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
               </button>
             </div>
           </form>
-        )}
       </div>
     </div>
   )

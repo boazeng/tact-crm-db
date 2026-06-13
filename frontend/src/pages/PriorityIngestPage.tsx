@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { PrioritySync, type PriorityConnection, type PriorityFieldMap, type IngestSummary } from '../lib/api'
 import { inputStyle } from '../components/Modal'
 import { useAuth, useEffectiveCompanyId } from '../lib/AuthContext'
+import { useToast } from '../lib/Toast'
 
 /** "קליטת נתוני לקוח מפריורטי" — pulls customer records from the company's
  * Priority connection and upserts them per the saved field mapping. */
 export default function PriorityIngestPage() {
   const { user } = useAuth()
+  const toast = useToast()
   const companyId = useEffectiveCompanyId()
   const cid = user?.role === 'super_admin' ? companyId ?? undefined : undefined
   const needsCompany = user?.role === 'super_admin' && !companyId
@@ -17,7 +19,6 @@ export default function PriorityIngestPage() {
   const [limit, setLimit] = useState('')          // empty = all
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<IngestSummary | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (needsCompany) {
@@ -30,7 +31,7 @@ export default function PriorityIngestPage() {
         setConn(c)
         setMaps(m)
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => toast.error(String(e)))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, user?.role])
@@ -43,12 +44,13 @@ export default function PriorityIngestPage() {
     const scope = lim ? `${lim} הרשומות הראשונות` : 'כל הלקוחות'
     if (!confirm(`לקלוט ${scope} מפריורטי לפי ${n} השדות הממופים? לקוחות קיימים יעודכנו בשדות הממופים בלבד.`)) return
     setRunning(true)
-    setError(null)
     setResult(null)
     try {
-      setResult(await PrioritySync.ingest(lim, cid))
+      const r = await PrioritySync.ingest(lim, cid)
+      setResult(r)
+      toast.success(`הקליטה הושלמה — ${r.created} נוצרו, ${r.updated} עודכנו${r.skipped ? `, ${r.skipped} דולגו` : ''}`)
     } catch (e) {
-      setError(String(e))
+      toast.error(String(e))
     } finally {
       setRunning(false)
     }
@@ -120,7 +122,6 @@ export default function PriorityIngestPage() {
         </button>
       </div>
 
-      {error && <div style={{ color: 'var(--color-accent)', marginBottom: 10 }}>{error}</div>}
 
       {result && (
         <div className="tact-kpi" style={{ padding: 18 }}>
