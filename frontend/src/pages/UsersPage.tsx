@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Users, type UserRole, type UserRow } from '../lib/api'
+import { Users, Companies, type Company, type UserRole, type UserRow } from '../lib/api'
 import DataTable from '../components/DataTable'
 import Modal, { Field, inputStyle } from '../components/Modal'
 import { useAuth, useEffectiveCompanyId } from '../lib/AuthContext'
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  super_admin: 'מנהל-על',
+  super_admin: 'מנהל מערכת',
   company_admin: 'אדמין חברה',
   company_user: 'משתמש חברה',
 }
@@ -15,6 +15,8 @@ type FormState = {
   email: string
   phone: string
   role: UserRole
+  // For super_admin (system user) this stays null; otherwise it's the user's company.
+  company_id: number | null
   is_active: boolean
 }
 
@@ -23,13 +25,16 @@ const EMPTY_FORM: FormState = {
   email: '',
   phone: '',
   role: 'company_user',
+  company_id: null,
   is_active: true,
 }
 
 export default function UsersPage() {
   const { user } = useAuth()
   const companyId = useEffectiveCompanyId()
+  const isSuper = user?.role === 'super_admin'
   const [rows, setRows] = useState<UserRow[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -37,27 +42,33 @@ export default function UsersPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saveErr, setSaveErr] = useState<string | null>(null)
 
-  const needsCompany = user?.role === 'super_admin' && !companyId
-
   function load() {
-    if (needsCompany) {
-      setRows([])
-      setLoading(false)
-      return
-    }
     setLoading(true)
-    Users.list(user?.role === 'super_admin' ? companyId ?? undefined : undefined)
+    // super_admin with no company selected → lists ALL users (incl. system users).
+    Users.list(isSuper ? companyId ?? undefined : undefined)
       .then(setRows)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }
   useEffect(load, [user?.role, companyId])
 
-  const availableRoles: UserRole[] = useMemo(() => ['company_admin', 'company_user'], [])
+  // Companies feed the per-user company picker (super_admin only).
+  useEffect(() => {
+    if (isSuper) Companies.list().then(setCompanies).catch(() => {})
+  }, [isSuper])
+
+  // A super_admin can also create system users (no company); others cannot.
+  const availableRoles: UserRole[] = useMemo(
+    () => (isSuper ? ['super_admin', 'company_admin', 'company_user'] : ['company_admin', 'company_user']),
+    [isSuper],
+  )
+
+  const companyName = (id: number | null) =>
+    id == null ? '— מערכת —' : companies.find((c) => c.id === id)?.name || `#${id}`
 
   function openCreate() {
     setEditing(null)
-    setForm(EMPTY_FORM)
+    setForm({ ...EMPTY_FORM, company_id: companyId ?? null })
     setSaveErr(null)
     setOpen(true)
   }
@@ -68,6 +79,7 @@ export default function UsersPage() {
       email: u.email,
       phone: u.phone || '',
       role: u.role,
+      company_id: u.company_id,
       is_active: u.is_active,
     })
     setSaveErr(null)
@@ -76,12 +88,20 @@ export default function UsersPage() {
 
   async function save() {
     setSaveErr(null)
+    // System users (super_admin) carry no company. For other roles a company is
+    // required: super_admin picks it; a company_admin always uses their own.
+    const resolvedCompany =
+      form.role === 'super_admin' ? null : isSuper ? form.company_id : companyId ?? null
+    if (form.role !== 'super_admin' && resolvedCompany == null) {
+      setSaveErr('יש לבחור חברה עבור משתמש שאינו מנהל מערכת')
+      return
+    }
     const payload = {
       full_name: form.full_name,
       email: form.email,
       phone: form.phone || null,
       role: form.role,
-      company_id: companyId ?? null,
+      company_id: resolvedCompany,
       is_active: form.is_active,
     }
     try {
@@ -104,14 +124,6 @@ export default function UsersPage() {
     load()
   }
 
-  if (needsCompany) {
-    return (
-      <div className="tact-kpi" style={{ textAlign: 'center' }}>
-        <div className="tact-kpi-label">בחר חברה כדי לנהל משתמשים</div>
-      </div>
-    )
-  }
-
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -120,7 +132,9 @@ export default function UsersPage() {
             ניהול משתמשים
           </h2>
           <div style={{ fontSize: '0.85rem', color: 'var(--color-text-light)' }}>
-            מנהלי המערכת של החברה
+            {isSuper
+              ? (companyId ? 'משתמשי החברה הנבחרת' : 'כל המשתמשים — כולל מנהלי מערכת (ללא חברה)')
+              : 'מנהלי המערכת של החברה'}
           </div>
         </div>
         <button onClick={openCreate} className="tact-btn tact-btn-primary">
@@ -140,6 +154,9 @@ export default function UsersPage() {
             { header: 'אימייל', key: 'email' },
             { header: 'טלפון', key: 'phone' },
             { header: 'תפקיד', key: 'role', render: (r) => ROLE_LABEL[r.role] },
+            ...(isSuper
+              ? [{ header: 'חברה', key: 'company_id', render: (r: UserRow) => companyName(r.company_id) }]
+              : []),
             {
               header: 'סטטוס',
               key: 'is_active',
@@ -201,6 +218,26 @@ export default function UsersPage() {
             ))}
           </select>
         </Field>
+        {/* System users (super_admin) have no company; everyone else needs one. */}
+        {isSuper && form.role !== 'super_admin' && (
+          <Field label="חברה">
+            <select
+              style={inputStyle}
+              value={form.company_id ?? ''}
+              onChange={(e) => setForm({ ...form, company_id: e.target.value ? Number(e.target.value) : null })}
+            >
+              <option value="">— בחר חברה —</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {isSuper && form.role === 'super_admin' && (
+          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', marginBottom: 10 }}>
+            מנהל מערכת אינו משויך לחברה — מנהל את המערכת כולה.
+          </div>
+        )}
         <Field label="סטטוס">
           <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
