@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # this is True. MUST be False in any deployed environment.
     enable_dev_login: bool = True
 
+    # "Sign in with Google": the OAuth Web client ID. Used as the expected `aud`
+    # when verifying a Google ID token. Empty → Google login is disabled.
+    google_client_id: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

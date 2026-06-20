@@ -227,6 +227,12 @@ export const Auth = {
       body: { email, password },
       auth: false,
     }),
+  google: (credential: string) =>
+    api<{ access_token: string; user: CurrentUser }>('/api/auth/google', {
+      method: 'POST',
+      body: { credential },
+      auth: false,
+    }),
   devUsers: () => api<DevUserOption[]>('/api/auth/dev-users', { auth: false }),
   devLogin: (email: string) =>
     api<{ access_token: string; user: CurrentUser }>('/api/auth/dev-login', {

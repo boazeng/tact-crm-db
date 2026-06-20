@@ -25,6 +25,8 @@ type AuthState = {
   login: (email: string, password: string) => Promise<void>
   /** Dev-only convenience login: pick a user by email, no password. */
   loginAs: (email: string) => Promise<void>
+  /** Sign in with Google: exchange a Google ID token for a session. */
+  loginWithGoogle: (credential: string) => Promise<void>
   logout: () => void
   setActiveCompany: (id: number | null) => void
   refresh: () => Promise<void>
@@ -84,6 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession],
   )
 
+  const loginWithGoogle = useCallback(
+    async (credential: string) => {
+      const { access_token, user: me } = await Auth.google(credential)
+      applySession(access_token, me)
+    },
+    [applySession],
+  )
+
   const logout = useCallback(() => {
     clearToken()
     setUser(null)
@@ -102,11 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeCompanyId,
       login,
       loginAs,
+      loginWithGoogle,
       logout,
       setActiveCompany,
       refresh,
     }),
-    [user, loading, activeCompanyId, login, loginAs, logout, setActiveCompany, refresh],
+    [user, loading, activeCompanyId, login, loginAs, loginWithGoogle, logout, setActiveCompany, refresh],
   )
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>

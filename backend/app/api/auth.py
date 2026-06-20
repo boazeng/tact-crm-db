@@ -7,9 +7,11 @@ Two login paths share the same `issue_token` helper and token shape:
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..auth.passwords import hash_password, verify_password
+from ..auth.google import GoogleAuthError, verify_google_token
 from ..auth.tokens import issue_token
 from ..config import settings
 from ..deps import get_current_user, get_db
@@ -46,6 +48,11 @@ class ChangePasswordRequest(BaseModel):
 
 class DevLoginRequest(BaseModel):
     email: EmailStr
+
+
+class GoogleLoginRequest(BaseModel):
+    # The Google ID token (JWT) returned by Google Identity Services in the browser.
+    credential: str
 
 
 class DevUserOption(BaseModel):
@@ -87,6 +94,31 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
+        )
+    token = issue_token(user.id)
+    return TokenResponse(access_token=token, user=_serialize_user(user, db))
+
+
+@router.post("/google", response_model=TokenResponse)
+def google_login(body: GoogleLoginRequest, db: Session = Depends(get_db)):
+    """Sign in with Google. Verifies the Google ID token, then logs in the user
+    whose email matches an EXISTING active account. We never auto-provision: an
+    unknown Google email is rejected, so an admin stays in control of access."""
+    try:
+        claims = verify_google_token(body.credential)
+    except GoogleAuthError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
+    email = claims["email"].strip()
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == email.lower(), User.is_active.is_(True))
+        .first()
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="אין חשבון מורשה לכתובת זו — פנה למנהל המערכת",
         )
     token = issue_token(user.id)
     return TokenResponse(access_token=token, user=_serialize_user(user, db))

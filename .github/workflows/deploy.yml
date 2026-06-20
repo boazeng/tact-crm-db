@@ -25,6 +25,9 @@ env:
   SUBNET_IDS: subnet-0690a7d9bca4f5e98,subnet-08c9344f4c4c388ac
   DB_USERNAME: crmadmin
   SEED_ADMIN_EMAIL: boazen@gmail.com
+  # Public Google OAuth Web client ID (not a secret) — used by both the frontend
+  # build and the backend (as the expected ID-token audience).
+  GOOGLE_CLIENT_ID: 30184743393-bp4v0518a1kk3qq9mkl4gsbnbvlv4r3b.apps.googleusercontent.com
   DOMAIN_NAME: crm-db.newavera.co.il
   ACM_CERT_ARN: arn:aws:acm:us-east-1:824980746386:certificate/8f274c02-3d62-4153-8a7c-b80ab1f779e5
   FRONTEND_BUCKET: tact-crm-frontend-824980746386
@@ -43,6 +46,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Build
         working-directory: frontend
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ env.GOOGLE_CLIENT_ID }}
         run: |
           npm ci
           npm run build
@@ -91,5 +96,6 @@ jobs:
               "JwtSecret=${JWT_SECRET}" \
               "SeedAdminEmail=${SEED_ADMIN_EMAIL}" \
               "SeedAdminPassword=${SEED_ADMIN_PASSWORD}" \
+              "GoogleClientId=${GOOGLE_CLIENT_ID}" \
               "DomainName=${DOMAIN_NAME}" \
               "AcmCertificateArn=${ACM_CERT_ARN}"

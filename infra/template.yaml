@@ -57,6 +57,10 @@ Parameters:
     NoEcho: true
     MinLength: 10
     Description: Password for the first super_admin.
+  GoogleClientId:
+    Type: String
+    Default: '30184743393-bp4v0518a1kk3qq9mkl4gsbnbvlv4r3b.apps.googleusercontent.com'
+    Description: Google OAuth Web client ID, used as the expected aud when verifying Google ID tokens. Empty = Google login disabled.
   DomainName:
     Type: String
     Default: ''
@@ -247,6 +251,7 @@ Resources:
           APP_ENV: production
           ENABLE_DEV_LOGIN: 'false'
           JWT_SECRET: !Ref JwtSecret
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
           DATABASE_URL: !Sub
             - postgresql+pg8000://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
             - Endpoint: !GetAtt Database.Endpoint.Address

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Auth, type DevUserOption } from '../lib/api'
 import { useAuth } from '../lib/AuthContext'
 import { useToast } from '../lib/Toast'
+import { GOOGLE_CLIENT_ID } from '../lib/config'
 import TactLogo from '../components/TactLogo'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -31,8 +32,9 @@ const labelStyle: React.CSSProperties = {
 }
 
 export default function LoginPage() {
-  const { login, loginAs } = useAuth()
+  const { login, loginAs, loginWithGoogle } = useAuth()
   const toast = useToast()
+  const googleBtnRef = useRef<HTMLDivElement>(null)
 
   // --- Production email + password ---
   const [email, setEmail] = useState('')
@@ -53,6 +55,54 @@ export default function LoginPage() {
       })
       .catch(() => setDevUsers([]))
   }, [])
+
+  // Load Google Identity Services and render the official "Sign in with Google"
+  // button. The callback exchanges the Google ID token for an app session.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return
+
+    function render() {
+      const gsi = (window as { google?: any }).google
+      if (!gsi?.accounts?.id || !googleBtnRef.current) return
+      gsi.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (resp: { credential?: string }) => {
+          if (!resp.credential) return
+          try {
+            await loginWithGoogle(resp.credential)
+          } catch (e) {
+            toast.error((e as Error)?.message || 'התחברות Google נכשלה')
+          }
+        },
+      })
+      googleBtnRef.current.innerHTML = ''
+      gsi.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        width: 320,
+        locale: 'he',
+      })
+    }
+
+    if ((window as { google?: any }).google?.accounts?.id) {
+      render()
+      return
+    }
+    const existing = document.getElementById('gsi-client') as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener('load', render)
+      return
+    }
+    const s = document.createElement('script')
+    s.src = 'https://accounts.google.com/gsi/client'
+    s.async = true
+    s.defer = true
+    s.id = 'gsi-client'
+    s.onload = render
+    document.body.appendChild(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loginWithGoogle])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -144,6 +194,16 @@ export default function LoginPage() {
             {submitting ? 'מתחבר…' : 'התחבר'}
           </button>
         </form>
+
+        {/* Sign in with Google */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 16px' }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-light)' }}>או</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div ref={googleBtnRef} />
+        </div>
 
         {devUsers.length > 0 && (
           <details style={{ marginTop: 24 }}>
