@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git rev-list *)",
-      "Bash(./.venv/Scripts/python.exe -c ' *)"
-    ]
-  }
-}
