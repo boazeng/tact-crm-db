@@ -36,14 +36,18 @@ def list_memberships(
     search: str | None = None,
     status: str | None = None,
     exclude_status: str | None = None,
+    active_only: bool = False,
 ) -> list[tuple[CustomerCompany, Customer]]:
     """List a company's memberships. `status` keeps only that membership status
-    (e.g. "lead"); `exclude_status` drops it (e.g. customers view hides leads)."""
+    (e.g. "lead"); `exclude_status` drops it (e.g. customers view hides leads).
+    `active_only` drops soft-removed (unlinked) memberships."""
     q = (
         db.query(CustomerCompany, Customer)
         .join(Customer, Customer.id == CustomerCompany.customer_id)
         .filter(CustomerCompany.company_id == company_id)
     )
+    if active_only:
+        q = q.filter(CustomerCompany.is_active.is_(True))
     if status:
         q = q.filter(CustomerCompany.status == status)
     if exclude_status:

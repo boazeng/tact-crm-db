@@ -58,8 +58,8 @@ def list_customers(
     db: Session = Depends(get_db),
     company: Company = Depends(get_service_company),
 ):
-    """All customers of the resolved company."""
-    rows = customer_service.list_memberships(db, company.id, search)
+    """All active customers of the resolved company (soft-removed ones excluded)."""
+    rows = customer_service.list_memberships(db, company.id, search, active_only=True)
     return [customer_service.to_out(db, m, c) for m, c in rows]
 
 
