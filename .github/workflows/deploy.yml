@@ -84,9 +84,11 @@ jobs:
           DB_PASSWORD=$(aws ssm get-parameter --name tact-crm-db-password --with-decryption --query Parameter.Value --output text)
           JWT_SECRET=$(aws ssm get-parameter --name tact-crm-jwt-secret --with-decryption --query Parameter.Value --output text)
           SEED_ADMIN_PASSWORD=$(aws ssm get-parameter --name tact-crm-seed-admin-password --with-decryption --query Parameter.Value --output text)
+          SERVICE_API_KEY=$(aws ssm get-parameter --name tact-crm-service-key --with-decryption --query Parameter.Value --output text)
           echo "::add-mask::$DB_PASSWORD"
           echo "::add-mask::$JWT_SECRET"
           echo "::add-mask::$SEED_ADMIN_PASSWORD"
+          echo "::add-mask::$SERVICE_API_KEY"
           sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
             --parameter-overrides \
               "VpcId=${VPC_ID}" \
@@ -97,5 +99,6 @@ jobs:
               "SeedAdminEmail=${SEED_ADMIN_EMAIL}" \
               "SeedAdminPassword=${SEED_ADMIN_PASSWORD}" \
               "GoogleClientId=${GOOGLE_CLIENT_ID}" \
+              "ServiceApiKey=${SERVICE_API_KEY}" \
               "DomainName=${DOMAIN_NAME}" \
               "AcmCertificateArn=${ACM_CERT_ARN}"

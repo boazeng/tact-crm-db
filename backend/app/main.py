@@ -22,6 +22,7 @@ from .api import (
     realestate_projects,
     public_api,
     role_options,
+    service,
     users,
 )
 
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(customers.router)
     app.include_router(api_keys.router)
     app.include_router(public_api.router)
+    app.include_router(service.router)
 
     # Priority-ERP sync is an optional, still-in-progress feature. Load its router
     # only if the module is present in this build, so a deployment that doesn't

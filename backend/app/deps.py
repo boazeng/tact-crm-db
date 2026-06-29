@@ -5,6 +5,7 @@ Two authentication paths share the same tenant-scoping rule:
   • X-API-Key (programmatic) → get_api_company
 A company can only ever touch rows whose company_id matches the resolved tenant.
 """
+import secrets
 from datetime import datetime
 
 from fastapi import Depends, Header, HTTPException, Query, status
@@ -13,6 +14,7 @@ import jwt
 
 from .auth.keys import hash_key
 from .auth.tokens import decode_token
+from .config import settings
 from .database import SessionLocal
 from .models import ApiKey, Company, User, UserRole
 
@@ -143,3 +145,26 @@ def get_api_company(
     key.last_used_at = datetime.utcnow()
     db.commit()
     return _load_active_company(db, key.company_id)
+
+
+def get_service_company(
+    db: Session = Depends(get_db),
+    x_service_key: str | None = Header(default=None),
+    company_id: int | None = Query(default=None),
+) -> Company:
+    """Trusted first-party service auth for app-to-app reads (e.g. the bedek app).
+
+    One shared secret in the `X-Service-Key` header authenticates the calling
+    service; the tenant is scoped by the required `company_id` query param. The
+    secret lives only server-side in the calling app — never in a browser."""
+    expected = settings.service_api_key
+    if not expected:
+        raise _unauthorized("Service API is disabled")
+    if not x_service_key or not secrets.compare_digest(x_service_key, expected):
+        raise _unauthorized("Invalid service key")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="company_id query parameter is required",
+        )
+    return _load_active_company(db, company_id)

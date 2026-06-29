@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # when verifying a Google ID token. Empty → Google login is disabled.
     google_client_id: str = ""
 
+    # Trusted first-party service-to-service secret (e.g. the bedek app reading
+    # this company's real-estate projects + customers). One shared secret sent in
+    # the `X-Service-Key` header; the tenant is scoped by the `company_id` query
+    # param. Empty → the /api/service surface is disabled. Set a long random value
+    # via env in every deployed environment.
+    service_api_key: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

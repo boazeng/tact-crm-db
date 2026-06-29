@@ -61,6 +61,11 @@ Parameters:
     Type: String
     Default: '30184743393-bp4v0518a1kk3qq9mkl4gsbnbvlv4r3b.apps.googleusercontent.com'
     Description: Google OAuth Web client ID, used as the expected aud when verifying Google ID tokens. Empty = Google login disabled.
+  ServiceApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Shared first-party service secret for the /api/service surface (e.g. the bedek app). Empty = service API disabled.
   DomainName:
     Type: String
     Default: ''
@@ -252,6 +257,7 @@ Resources:
           ENABLE_DEV_LOGIN: 'false'
           JWT_SECRET: !Ref JwtSecret
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          SERVICE_API_KEY: !Ref ServiceApiKey
           DATABASE_URL: !Sub
             - postgresql+pg8000://${DBUsername}:${DBPassword}@${Endpoint}:5432/${DBName}
             - Endpoint: !GetAtt Database.Endpoint.Address
