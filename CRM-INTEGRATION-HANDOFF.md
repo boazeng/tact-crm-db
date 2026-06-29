@@ -66,3 +66,17 @@
 - שמירת ה-CRM base URL + הסוד בצד-שרת (Secrets Manager/env), לא חשוף ב-UI.
 - קישור חד-פעמי: חברה ב-bedek ↔ `company_id` ב-CRM.
 - שירות סנכרון שמייבא פרויקטים + לקוחות (read-only), עם כפתור "סנכרון מ-CRM".
+
+---
+
+## ✅ צד CRM הושלם — תשובות ל-bedek (2026-06-29)
+המשטח חי בפרוד ונבדק. עבר בדיקת עשן: `401` ללא/מפתח-שגוי · `400` ללא `company_id` · `200` עם מפתח+`company_id`.
+
+1. **CRM base URL (פרוד):** `https://crm-db.newavera.co.il` (חלופה ישירה: `https://d2tbaitn7urlvp.cloudfront.net`). הנתיבים תחת `/api/service/...`.
+2. **SERVICE_API_KEY:** מאוחסן ב-AWS SSM Parameter Store (אותו חשבון, us-east-1) בשם **`tact-crm-service-key`** (SecureString). bedek יקרא אותו משם / יזריק ל-Secrets Manager שלו. **לא נשמר ב-git.**
+3. **סינון "בדק":** קטגוריית פרויקטי הנדל״ן ב-CRM היא בדיוק "פרויקטים בנדלן בדק" → `GET /api/service/realestate-projects` כבר מחזיר רק פרויקטי בדק. אין סינון נוסף.
+4. **מיפוי tenant לבדיקה:** `company_id=1` = "קבוצה אורבנית" (951 לקוחות, 0 פרויקטי נדל״ן) · `company_id=2` יש בה פרויקט נדל״ן לדוגמה.
+
+**דוגמת `realestate-project` (company_id=2):** שדות מאוכלסים — `id, company_id, project_number ("106"), name ("יצחק שמיר 11"), description, customer_membership_id, customer_name, notes, creation_date ("2026-06-15"), params[15], numbers[15], flags[5], lists[10], created_at, updated_at`.
+
+**דוגמת `customer` (company_id=1):** `membership_id, id, status, source ("sync"), external_ref ("50658"), is_paying, paid_by_membership_id, paid_by_name, links[], customer_number, full_name, customer_type ("person"), company_name, national_id, nickname, role, street1/city1/street2/city2, phone, email, allow_mailing, notes, creation_date, params[15], numbers[15], flags[5], lists[10], fields{}, created_at, updated_at`.
