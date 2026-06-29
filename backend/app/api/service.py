@@ -9,7 +9,7 @@ real-estate (בדק) projects and customers.
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from ..deps import get_db, get_service_company
+from ..deps import get_db, get_service_company, require_service_key
 from ..models import Company
 from ..schemas.customer import CustomerOut
 from ..schemas.realestate_project import RealEstateProjectOut
@@ -17,6 +17,19 @@ from ..services import customer_service, realestate_project_service
 
 
 router = APIRouter(prefix="/api/service", tags=["service-api"])
+
+
+@router.get("/companies", dependencies=[Depends(require_service_key)])
+def list_companies(db: Session = Depends(get_db)):
+    """All active companies (id + name). Cross-tenant — the consuming app uses
+    this to mirror the company list and map each to its own tenant."""
+    rows = (
+        db.query(Company)
+        .filter(Company.is_active.is_(True))
+        .order_by(Company.name)
+        .all()
+    )
+    return [{"id": c.id, "name": c.name} for c in rows]
 
 
 @router.get("/company")

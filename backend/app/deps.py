@@ -147,6 +147,17 @@ def get_api_company(
     return _load_active_company(db, key.company_id)
 
 
+def require_service_key(x_service_key: str | None = Header(default=None)) -> None:
+    """Validate the shared service secret (X-Service-Key) without tenant scoping.
+
+    Used by cross-tenant service endpoints such as listing all companies."""
+    expected = settings.service_api_key
+    if not expected:
+        raise _unauthorized("Service API is disabled")
+    if not x_service_key or not secrets.compare_digest(x_service_key, expected):
+        raise _unauthorized("Invalid service key")
+
+
 def get_service_company(
     db: Session = Depends(get_db),
     x_service_key: str | None = Header(default=None),
@@ -157,11 +168,7 @@ def get_service_company(
     One shared secret in the `X-Service-Key` header authenticates the calling
     service; the tenant is scoped by the required `company_id` query param. The
     secret lives only server-side in the calling app — never in a browser."""
-    expected = settings.service_api_key
-    if not expected:
-        raise _unauthorized("Service API is disabled")
-    if not x_service_key or not secrets.compare_digest(x_service_key, expected):
-        raise _unauthorized("Invalid service key")
+    require_service_key(x_service_key)
     if not company_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
