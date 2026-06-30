@@ -166,7 +166,7 @@ export default function RealEstateProjectForm({ form, setForm, fieldLabels, cust
     <>
       {/* Basic data */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <Field label="מספר פרויקט">
+        <Field label="מספר פרויקט" hint="ריק → מספור אוטומטי (רץ פר-חברה)">
           <input style={inputStyle} value={form.project_number} onChange={(e) => set({ project_number: e.target.value })} />
         </Field>
         <Field label="שם הפרויקט">

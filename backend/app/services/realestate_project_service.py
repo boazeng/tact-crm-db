@@ -54,8 +54,53 @@ def _validate_customer(db: Session, company_id: int, membership_id: int | None) 
     return membership_id
 
 
+def _next_project_number(db: Session, company_id: int) -> str:
+    """Next running project number for the company — max numeric one so far + 1
+    (starts at 1 when the company has none yet). Numbering is per-company."""
+    rows = (
+        db.query(RealEstateProject.project_number)
+        .filter(RealEstateProject.company_id == company_id)
+        .all()
+    )
+    mx = 0
+    for (n,) in rows:
+        s = (n or "").strip()
+        if s.isdigit():
+            mx = max(mx, int(s))
+    return str(mx + 1)
+
+
+def _ensure_unique_number(db: Session, company_id: int, number: str, project_id: int | None) -> None:
+    """A manually-entered project number must be unique within the company."""
+    q = db.query(RealEstateProject.id).filter(
+        RealEstateProject.company_id == company_id,
+        RealEstateProject.project_number == number,
+    )
+    if project_id is not None:
+        q = q.filter(RealEstateProject.id != project_id)
+    if q.first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"מספר פרויקט '{number}' כבר קיים בחברה זו",
+        )
+
+
+def _resolve_project_number(
+    db: Session, company_id: int, project: RealEstateProject, raw: str | None, project_id: int | None
+) -> str:
+    """Manual number → kept (after a uniqueness check). Empty on create → the next
+    running number. Empty on update → keep the project's existing number."""
+    raw = (raw or "").strip()
+    if raw:
+        _ensure_unique_number(db, company_id, raw, project_id)
+        return raw
+    if project_id is None:
+        return _next_project_number(db, company_id)
+    return project.project_number or _next_project_number(db, company_id)
+
+
 def _apply(project: RealEstateProject, body: RealEstateProjectIn) -> None:
-    project.project_number = body.project_number
+    # project_number is resolved separately (auto-numbering + uniqueness).
     project.name = body.name
     project.description = body.description
     project.notes = body.notes
@@ -79,6 +124,9 @@ def upsert_project(
         project = RealEstateProject(company_id=company_id, name=body.name)
         db.add(project)
     _apply(project, body)
+    project.project_number = _resolve_project_number(
+        db, company_id, project, body.project_number, project_id
+    )
     project.customer_membership_id = _validate_customer(db, company_id, body.customer_membership_id)
     project.updated_at = datetime.utcnow()
     db.commit()
