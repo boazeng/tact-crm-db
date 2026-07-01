@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Boolean
+from sqlalchemy import String, DateTime, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -14,6 +14,10 @@ class Company(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    # Human-facing running company number, assigned from 1001 for companies created
+    # after this feature. NULL for pre-existing companies (they keep the legacy
+    # plain project numbering). Used as the prefix in project numbers: 1001-001.
+    company_number: Mapped[int | None] = mapped_column(Integer)
     contact_email: Mapped[str | None] = mapped_column(String(200))
     phone: Mapped[str | None] = mapped_column(String(40))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

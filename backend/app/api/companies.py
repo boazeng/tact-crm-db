@@ -1,5 +1,6 @@
 """Companies management. Super admin only — tenants are top-level entities."""
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,16 @@ from ..schemas.admin import CompanyIn, CompanyOut
 
 
 router = APIRouter(prefix="/api/admin/companies", tags=["admin-companies"])
+
+# Company numbers run from here for companies created after this feature.
+COMPANY_NUMBER_START = 1001
+
+
+def _next_company_number(db: Session) -> int:
+    """Next running company number (>= 1001). Pre-existing companies have NULL and
+    are ignored, so numbering starts clean at 1001."""
+    mx = db.query(func.max(Company.company_number)).scalar()
+    return mx + 1 if mx else COMPANY_NUMBER_START
 
 
 @router.get("", response_model=list[CompanyOut])
@@ -25,7 +36,7 @@ def create_company(
     db: Session = Depends(get_db),
     _: User = Depends(require_super_admin),
 ):
-    company = Company(**body.model_dump())
+    company = Company(**body.model_dump(), company_number=_next_company_number(db))
     db.add(company)
     try:
         db.commit()

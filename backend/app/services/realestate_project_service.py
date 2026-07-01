@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     RealEstateProject,
+    Company,
     Customer,
     CustomerCompany,
     RE_PROJECT_PARAM_COUNT,
@@ -55,16 +56,30 @@ def _validate_customer(db: Session, company_id: int, membership_id: int | None) 
 
 
 def _next_project_number(db: Session, company_id: int) -> str:
-    """Next running project number for the company — max numeric one so far + 1
-    (starts at 1 when the company has none yet). Numbering is per-company."""
-    rows = (
-        db.query(RealEstateProject.project_number)
+    """Next running project number for the company.
+
+    If the company has a `company_number` (assigned from 1001 for newer companies),
+    the format is ``{company_number}-{NNN}`` with the running part zero-padded to at
+    least 3 digits (…-999 then …-1000). Otherwise (pre-existing companies) it stays
+    a plain running integer. Numbering is per-company."""
+    company = db.query(Company).filter(Company.id == company_id).first()
+    prefix = company.company_number if company else None
+    numbers = [
+        (n or "").strip()
+        for (n,) in db.query(RealEstateProject.project_number)
         .filter(RealEstateProject.company_id == company_id)
         .all()
-    )
+    ]
+    if prefix:
+        pref = f"{prefix}-"
+        mx = 0
+        for s in numbers:
+            tail = s[len(pref):]
+            if s.startswith(pref) and tail.isdigit():
+                mx = max(mx, int(tail))
+        return f"{prefix}-{mx + 1:03d}"
     mx = 0
-    for (n,) in rows:
-        s = (n or "").strip()
+    for s in numbers:
         if s.isdigit():
             mx = max(mx, int(s))
     return str(mx + 1)

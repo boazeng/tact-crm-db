@@ -9,6 +9,8 @@ Lambda migrate handler after each deploy, and runnable locally:
 """
 import os
 
+from sqlalchemy import inspect, text
+
 from .auth.passwords import hash_password
 from .database import Base, SessionLocal, engine
 from .models import User, UserRole
@@ -18,6 +20,32 @@ def create_tables() -> None:
     from . import models  # noqa: F401 — register every model on Base.metadata
 
     Base.metadata.create_all(bind=engine)
+
+
+# Idempotent additive column patches for tables that already exist (create_all only
+# creates missing tables, it never alters existing ones). Each entry:
+# table -> {column: SQL type}. Safe to run on every deploy.
+_COLUMN_PATCHES: dict[str, dict[str, str]] = {
+    "companies": {"company_number": "INTEGER"},
+}
+
+
+def patch_schema() -> list[str]:
+    """Add any missing columns listed in _COLUMN_PATCHES. Dialect-agnostic: both
+    Postgres and SQLite support `ALTER TABLE ADD COLUMN <name> <type>`."""
+    insp = inspect(engine)
+    applied: list[str] = []
+    existing_tables = set(insp.get_table_names())
+    for table, columns in _COLUMN_PATCHES.items():
+        if table not in existing_tables:
+            continue  # create_all will have made it with all columns
+        have = {c["name"] for c in insp.get_columns(table)}
+        for col, sqltype in columns.items():
+            if col not in have:
+                with engine.begin() as conn:
+                    conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {col} {sqltype}'))
+                applied.append(f"{table}.{col}")
+    return applied
 
 
 def ensure_super_admin(email: str, password: str, full_name: str = "Administrator") -> int:
@@ -47,9 +75,9 @@ def ensure_super_admin(email: str, password: str, full_name: str = "Administrato
 def run(email: str | None = None, password: str | None = None) -> dict:
     """Create tables and, if admin credentials are supplied, ensure the super_admin."""
     create_tables()
+    result: dict = {"tables": "ensured", "columns_added": patch_schema()}
     email = email or os.environ.get("SEED_ADMIN_EMAIL")
     password = password or os.environ.get("SEED_ADMIN_PASSWORD")
-    result: dict = {"tables": "ensured"}
     if email and password:
         result["super_admin_id"] = ensure_super_admin(email, password)
         result["super_admin_email"] = email

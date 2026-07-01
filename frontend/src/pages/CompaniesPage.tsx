@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Companies, type Company } from '../lib/api'
+import { Companies, type Company, type CompanyInput } from '../lib/api'
 import DataTable from '../components/DataTable'
 import Modal, { Field, inputStyle } from '../components/Modal'
 
-type FormState = Omit<Company, 'id' | 'created_at'>
+type FormState = CompanyInput
 
 const EMPTY_FORM: FormState = {
   name: '',
@@ -92,6 +92,7 @@ export default function CompaniesPage() {
           rows={rows}
           rowKey={(r) => r.id}
           columns={[
+            { header: "מס' חברה", key: 'company_number', render: (r) => r.company_number ?? '—' },
             { header: 'שם', key: 'name' },
             { header: 'מזהה (slug)', key: 'slug', render: (r) => <code style={{ fontFamily: 'var(--font-family-en)' }}>{r.slug}</code> },
             { header: 'איש קשר', key: 'contact_email' },

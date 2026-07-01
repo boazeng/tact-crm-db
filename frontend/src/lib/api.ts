@@ -95,6 +95,7 @@ export type Company = {
   contact_email: string | null
   phone: string | null
   is_active: boolean
+  company_number: number | null
   created_at: string
 }
 
@@ -253,11 +254,14 @@ export const Dashboard = {
     api<DashboardResponse>('/api/dashboard', { query: cq(companyId) }),
 }
 
+// company_number is assigned by the server, never sent on create/update.
+export type CompanyInput = Omit<Company, 'id' | 'created_at' | 'company_number'>
+
 export const Companies = {
   list: () => api<Company[]>('/api/admin/companies'),
-  create: (body: Omit<Company, 'id' | 'created_at'>) =>
+  create: (body: CompanyInput) =>
     api<Company>('/api/admin/companies', { method: 'POST', body }),
-  update: (id: number, body: Omit<Company, 'id' | 'created_at'>) =>
+  update: (id: number, body: CompanyInput) =>
     api<Company>(`/api/admin/companies/${id}`, { method: 'PUT', body }),
   remove: (id: number) => api<void>(`/api/admin/companies/${id}`, { method: 'DELETE' }),
 }

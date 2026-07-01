@@ -22,6 +22,7 @@ class CompanyOut(BaseModel):
     contact_email: str | None
     phone: str | None
     is_active: bool
+    company_number: int | None = None
     created_at: datetime
 
 
