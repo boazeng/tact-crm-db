@@ -8,12 +8,16 @@ Lambda migrate handler after each deploy, and runnable locally:
     python -m app.bootstrap  --  reads SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
 """
 import os
+import random
 
 from sqlalchemy import inspect, text
 
 from .auth.passwords import hash_password
 from .database import Base, SessionLocal, engine
-from .models import User, UserRole
+from .models import Company, User, UserRole
+
+_COMPANY_NUMBER_MIN = 10000
+_COMPANY_NUMBER_MAX = 99999
 
 
 def create_tables() -> None:
@@ -48,6 +52,40 @@ def patch_schema() -> list[str]:
     return applied
 
 
+def backfill_company_numbers() -> int:
+    """Assign a random unused 5-digit number to every company that lacks one.
+    Idempotent: once all companies have a number, subsequent runs do nothing."""
+    db = SessionLocal()
+    try:
+        used = {
+            n for (n,) in db.query(Company.company_number)
+            .filter(Company.company_number.isnot(None)).all()
+        }
+        missing = db.query(Company).filter(Company.company_number.is_(None)).all()
+        assigned = 0
+        for company in missing:
+            n = None
+            for _ in range(200):
+                cand = random.randint(_COMPANY_NUMBER_MIN, _COMPANY_NUMBER_MAX)
+                if cand not in used:
+                    n = cand
+                    break
+            if n is None:  # space nearly full — fall back to first free
+                for cand in range(_COMPANY_NUMBER_MIN, _COMPANY_NUMBER_MAX + 1):
+                    if cand not in used:
+                        n = cand
+                        break
+            if n is None:
+                break
+            used.add(n)
+            company.company_number = n
+            assigned += 1
+        db.commit()
+        return assigned
+    finally:
+        db.close()
+
+
 def ensure_super_admin(email: str, password: str, full_name: str = "Administrator") -> int:
     """Create the super_admin if absent; always (re)set its password and reactivate.
     Returns the user id."""
@@ -75,7 +113,11 @@ def ensure_super_admin(email: str, password: str, full_name: str = "Administrato
 def run(email: str | None = None, password: str | None = None) -> dict:
     """Create tables and, if admin credentials are supplied, ensure the super_admin."""
     create_tables()
-    result: dict = {"tables": "ensured", "columns_added": patch_schema()}
+    result: dict = {
+        "tables": "ensured",
+        "columns_added": patch_schema(),
+        "company_numbers_assigned": backfill_company_numbers(),
+    }
     email = email or os.environ.get("SEED_ADMIN_EMAIL")
     password = password or os.environ.get("SEED_ADMIN_PASSWORD")
     if email and password:

@@ -30,13 +30,13 @@ def list_companies(db: Session = Depends(get_db)):
         .order_by(Company.name)
         .all()
     )
-    return [{"id": c.id, "name": c.name} for c in rows]
+    return [{"id": c.id, "name": c.name, "company_number": c.company_number} for c in rows]
 
 
 @router.get("/company")
 def get_company(company: Company = Depends(get_service_company)):
     """Whoami for the linked tenant — lets the caller confirm the mapping."""
-    return {"id": company.id, "name": company.name}
+    return {"id": company.id, "name": company.name, "company_number": company.company_number}
 
 
 @router.get("/realestate-projects", response_model=list[RealEstateProjectOut])
